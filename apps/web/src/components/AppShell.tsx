@@ -1,0 +1,71 @@
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import type { PropsWithChildren } from "react";
+import type { AuthenticatedUser } from "@influencer-manager/shared/types/mobile";
+
+import { useAuthStore } from "../state/auth-store";
+
+interface AppShellProps extends PropsWithChildren {
+  user: AuthenticatedUser;
+  canPlan: boolean;
+  isReadOnly: boolean;
+}
+
+export function AppShell({
+  user,
+  canPlan,
+  isReadOnly,
+  children,
+}: AppShellProps) {
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <p className="eyebrow">Agency Workspace</p>
+          <h1>Campaign Builder</h1>
+        </div>
+        <nav className="sidebar-nav">
+          <Link
+            className={location.pathname.startsWith("/campaigns") ? "nav-link nav-link-active" : "nav-link"}
+            to="/campaigns"
+          >
+            Campaigns
+          </Link>
+          <Link
+            className={location.pathname.startsWith("/clients") ? "nav-link nav-link-active" : "nav-link"}
+            to="/clients"
+          >
+            Clients
+          </Link>
+          <Link
+            className={location.pathname.startsWith("/companies") ? "nav-link nav-link-active" : "nav-link"}
+            to="/companies"
+          >
+            Companies
+          </Link>
+        </nav>
+        <div className="sidebar-user">
+          <strong>{user.fullName}</strong>
+          <span className="muted">{user.email}</span>
+          <span className="badge badge-info">
+            {canPlan ? "Planning access" : isReadOnly ? "Read-only" : user.role}
+          </span>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              clearSession();
+              navigate("/");
+            }}
+            type="button"
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <main className="main-content">{children}</main>
+    </div>
+  );
+}

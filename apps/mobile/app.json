@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Influencer Campaign Manager",
+    "slug": "influencer-campaign-manager",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}

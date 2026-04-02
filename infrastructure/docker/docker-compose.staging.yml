@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: influencer-manager-staging-postgres
+    environment:
+      POSTGRES_DB: influencer_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-staging-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d influencer_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: influencer-manager-staging-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-staging-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/api/Dockerfile
+    container_name: influencer-manager-staging-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: staging
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/influencer_manager?schema=public
+      REDIS_URL: redis://redis:6379
+      REDIS_HEALTHCHECK_ENABLED: "true"
+      ENABLE_JOB_WORKERS: "false"
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      API_BASE_PATH: api
+      JWT_SECRET: replace-me-with-a-real-staging-secret
+      JWT_EXPIRES_IN: 1h
+    command: >
+      sh -c "npm run db:deploy && node apps/api/dist/apps/api/src/main.js"
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/api/Dockerfile
+    container_name: influencer-manager-staging-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: staging
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/influencer_manager?schema=public
+      REDIS_URL: redis://redis:6379
+      REDIS_HEALTHCHECK_ENABLED: "true"
+      ENABLE_JOB_WORKERS: "true"
+      JWT_SECRET: replace-me-with-a-real-staging-secret
+      JWT_EXPIRES_IN: 1h
+    command: ["node", "apps/api/dist/apps/api/src/worker.js"]
+
+volumes:
+  postgres-staging-data:
+  redis-staging-data:

@@ -1,0 +1,292 @@
+appId: host.exp.Exponent
+name: Creator workspace smoke
+---
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "Influencer Campaign Manager"
+    commands:
+      - tapOn: "Influencer Campaign Manager"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Expo Go"
+    commands:
+      - tapOn: "Enter URL manually"
+      - extendedWaitUntil:
+          visible: "exp://"
+          timeout: 30000
+      - tapOn: "exp://"
+      - eraseText
+      - inputText: ${EXPO_URL}
+      - tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Mobile campaign workspace"
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: "login-email-input"
+    timeout: 30000
+- tapOn:
+    id: "login-email-input"
+- inputText: ${CREATOR_EMAIL}
+- tapOn:
+    id: "login-password-input"
+- inputText: ${CREATOR_PASSWORD}
+- tapOn:
+    id: "login-submit-button"
+- runFlow:
+    when:
+      visible: "Save Password?"
+    commands:
+      - tapOn: "Not Now"
+- extendedWaitUntil:
+    visible: "What needs action now"
+    timeout: 60000
+- assertVisible: "Latest creator workflow signals"
+- assertVisible: ${STATUS_ROW_TEXT}
+- assertVisible: ${DIGEST_SCOPE_COPY}
+- tapOn:
+    id: "creator-tab-assignments"
+- extendedWaitUntil:
+    visible: "My Assignments"
+    timeout: 30000
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible:
+      id: "my-assignment-row-${SUBMIT_ASSIGNMENT_ID}"
+    timeout: 30000
+- assertVisible: ${SUBMIT_ASSIGNMENT_ROW_TEXT}
+- tapOn:
+    id: "my-assignment-row-${SUBMIT_ASSIGNMENT_ID}"
+- extendedWaitUntil:
+    visible: "Campaign structure"
+    timeout: 30000
+- swipe:
+    direction: UP
+- tapOn: "Submit Deliverable"
+- extendedWaitUntil:
+    visible: "Add your deliverables"
+    timeout: 30000
+- tapOn:
+    id: "submit-deliverable-notes-input-0"
+- inputText: ${SUBMIT_DELIVERABLE_NOTES}
+- tapOn:
+    point: "50%, 20%"
+- swipe:
+    direction: UP
+- tapOn:
+    id: "submit-deliverable-submit-button"
+- extendedWaitUntil:
+    visible: "Deliverables submitted"
+    timeout: 30000
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "Awaiting feedback"
+    timeout: 30000
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- tapOn:
+    id: "screen-back-button"
+- extendedWaitUntil:
+    visible: ${SUBMIT_ASSIGNMENT_RESULT_ROW_TEXT}
+    timeout: 30000
+- tapOn:
+    id: "creator-tab-status"
+- extendedWaitUntil:
+    visible:
+      id: "${SUBMIT_STATUS_ROW_ID}"
+    timeout: 30000
+- assertVisible: ${DIGEST_SCOPE_COPY}
+- tapOn:
+    id: "creator-tab-assignments"
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible:
+      id: "my-assignment-row-${REJECTED_ASSIGNMENT_ID}"
+    timeout: 30000
+- assertVisible: ${REJECTED_ASSIGNMENT_ROW_TEXT}
+- tapOn:
+    id: "my-assignment-row-${REJECTED_ASSIGNMENT_ID}"
+- swipe:
+    direction: UP
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible: "Resubmit Deliverable"
+    timeout: 30000
+- assertVisible: ${REJECTED_REVISION_FEEDBACK}
+- tapOn: "Resubmit Deliverable"
+- extendedWaitUntil:
+    visible: "Add your deliverables"
+    timeout: 30000
+- swipe:
+    direction: UP
+- tapOn:
+    id: "submit-deliverable-notes-input-0"
+- eraseText
+- inputText: ${REJECTED_DELIVERABLE_NOTES}
+- tapOn:
+    point: "50%, 20%"
+- swipe:
+    direction: UP
+- tapOn:
+    id: "submit-deliverable-submit-button"
+- extendedWaitUntil:
+    visible: "Deliverables submitted"
+    timeout: 30000
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "Awaiting feedback"
+    timeout: 30000
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- tapOn:
+    id: "screen-back-button"
+- extendedWaitUntil:
+    visible: ${REJECTED_ASSIGNMENT_RESULT_ROW_TEXT}
+    timeout: 30000
+- tapOn:
+    id: "creator-tab-status"
+- extendedWaitUntil:
+    visible:
+      id: "${REJECTED_STATUS_ROW_ID}"
+    timeout: 30000
+- tapOn:
+    id: "creator-tab-assignments"
+- swipe:
+    direction: DOWN
+- tapOn:
+    id: "my-assignments-search-input"
+- inputText: ${APPROVED_ASSIGNMENT_SEARCH}
+- tapOn: "Current assignment states"
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible:
+      id: "my-assignment-row-${APPROVED_ASSIGNMENT_ID}"
+    timeout: 30000
+- assertVisible: ${APPROVED_ASSIGNMENT_ROW_TEXT}
+- tapOn:
+    id: "my-assignment-row-${APPROVED_ASSIGNMENT_ID}"
+- extendedWaitUntil:
+    visible: "Campaign structure"
+    timeout: 30000
+- assertVisible: ${APPROVED_ASSIGNMENT_TITLE}
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible: "Link Another Post"
+    timeout: 30000
+- tapOn:
+    id: "influencer-assignment-link-post-button"
+- extendedWaitUntil:
+    visible: "Link Post"
+    timeout: 30000
+- swipe:
+    direction: UP
+- tapOn:
+    id: "link-post-url-input"
+- inputText: ${LINK_POST_URL}
+- tapOn:
+    point: "50%, 20%"
+- tapOn:
+    id: "link-post-external-id-input"
+- inputText: ${LINK_POST_EXTERNAL_ID}
+- tapOn:
+    point: "50%, 20%"
+- tapOn:
+    id: "link-post-posted-at-input"
+- inputText: ${LINK_POST_POSTED_AT}
+- tapOn:
+    point: "50%, 20%"
+- swipe:
+    direction: UP
+- tapOn:
+    id: "link-post-caption-input"
+- inputText: ${LINK_POST_CAPTION}
+- tapOn:
+    point: "50%, 20%"
+- swipe:
+    direction: UP
+- tapOn:
+    id: "link-post-submit-button"
+- extendedWaitUntil:
+    visible: "Post linked"
+    timeout: 30000
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "Published content"
+    timeout: 30000
+- assertVisible:
+    id: "influencer-assignment-post-marker-${LINK_POST_EXTERNAL_ID}"
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- tapOn:
+    id: "screen-back-button"
+- extendedWaitUntil:
+    visible:
+      id: "my-assignment-row-${APPROVED_ASSIGNMENT_ID}"
+    timeout: 30000
+- tapOn:
+    id: "creator-tab-status"
+- swipe:
+    direction: UP
+- extendedWaitUntil:
+    visible:
+      id: "${LINK_POST_STATUS_ROW_ID}"
+    timeout: 30000
+- tapOn:
+    id: "creator-tab-posts"
+- extendedWaitUntil:
+    visible: "My Posts"
+    timeout: 30000
+- assertVisible: "Post tracking status"
+- assertVisible: "Linked posts"
+- assertVisible: "With metrics"
+- assertVisible: ${TOTAL_POSTS_AFTER_LINK}
+- assertVisible: ${TRACKED_POSTS_AFTER_LINK}
+- assertVisible: ${PENDING_SYNC_POSTS_AFTER_LINK}
+- swipe:
+    direction: UP
+- assertVisible:
+    id: "my-post-marker-${LINK_POST_EXTERNAL_ID}"
+- swipe:
+    direction: UP
+- assertVisible: ${POST_ROW_TEXT}
+- tapOn:
+    id: "my-post-row-${POST_ID}"
+- extendedWaitUntil:
+    visible: "Post Performance"
+    timeout: 30000
+- assertVisible: ${POST_URL}
+- assertVisible: "Current rollup"
+- assertVisible: ${POST_PERFORMANCE_IMPRESSIONS}
+- swipe:
+    direction: UP
+- assertVisible: "Latest raw platform metrics"
+- assertVisible: ${POST_PERFORMANCE_LIKES}
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- tapOn:
+    id: "screen-back-button"
+- tapOn:
+    id: "creator-tab-status"
+- extendedWaitUntil:
+    visible: "What needs action now"
+    timeout: 30000

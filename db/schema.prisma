@@ -1,0 +1,661 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationStatus {
+  active
+  inactive
+
+  @@map("organization_status")
+}
+
+enum UserRole {
+  organization_admin
+  campaign_manager
+  campaign_editor
+  analyst
+  viewer
+  influencer
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  invited
+  active
+  suspended
+
+  @@map("user_status")
+}
+
+enum ClientStatus {
+  active
+  inactive
+  archived
+
+  @@map("client_status")
+}
+
+enum CompanyStatus {
+  active
+  inactive
+  archived
+
+  @@map("company_status")
+}
+
+enum CampaignStatus {
+  draft
+  planned
+  active
+  paused
+  completed
+  archived
+
+  @@map("campaign_status")
+}
+
+enum MissionStatus {
+  planned
+  active
+  completed
+
+  @@map("mission_status")
+}
+
+enum ActionStatus {
+  draft
+  scheduled
+  active
+  awaiting_submission
+  under_review
+  completed
+
+  @@map("action_status")
+}
+
+enum SocialPlatform {
+  instagram
+  tiktok
+  youtube
+  x
+  linkedin
+  threads
+  other
+
+  @@map("social_platform")
+}
+
+enum ContentFormat {
+  in_feed_post
+  carousel
+  reel
+  story_set
+  short_video
+  long_form_video
+  live_stream
+  other
+
+  @@map("content_format")
+}
+
+enum InfluencerStatus {
+  active
+  inactive
+  archived
+
+  @@map("influencer_status")
+}
+
+enum AssignmentStatus {
+  assigned
+  accepted
+  in_progress
+  submitted
+  approved
+  rejected
+  completed
+
+  @@map("assignment_status")
+}
+
+enum DeliverableStatus {
+  pending
+  submitted
+  approved
+  rejected
+
+  @@map("deliverable_status")
+}
+
+enum DeliverableType {
+  draft_content
+  final_asset
+  caption_copy
+  story_frame
+  post_link
+  other
+
+  @@map("deliverable_type")
+}
+
+enum PostMediaType {
+  image
+  video
+  carousel
+  story
+  short_video
+  live_stream
+  text
+  other
+
+  @@map("post_media_type")
+}
+
+enum AuditChangedByType {
+  user
+  influencer
+  system
+
+  @@map("audit_changed_by_type")
+}
+
+enum ImportLogStatus {
+  queued
+  running
+  completed
+  failed
+
+  @@map("import_log_status")
+}
+
+model Organization {
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  slug                  String                @unique
+  status                OrganizationStatus    @default(active)
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime              @updatedAt @db.Timestamptz(6)
+  users                 User[]
+  clients               Client[]
+  companies             Company[]
+  campaigns             Campaign[]
+  missions              Mission[]
+  actions               Action[]
+  influencers           Influencer[]
+  action_assignments    ActionAssignment[]
+  deliverables          Deliverable[]
+  posts                 Post[]
+  performance_snapshots PerformanceSnapshot[]
+  influencer_ratings    InfluencerRating[]
+  influencer_notes      InfluencerNote[]
+  audit_logs            AuditLog[]
+  import_logs           ImportLog[]
+  post_performance_summaries PostPerformanceSummary[]
+  action_performance_summaries ActionPerformanceSummary[]
+  mission_performance_summaries MissionPerformanceSummary[]
+  campaign_performance_summaries CampaignPerformanceSummary[]
+  influencer_performance_summaries InfluencerPerformanceSummary[]
+
+  @@map("organizations")
+}
+
+model User {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id    String           @db.Uuid
+  influencer_id      String?          @db.Uuid
+  full_name          String
+  email              String           @unique
+  password_hash      String?
+  role               UserRole
+  status             UserStatus       @default(invited)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @updatedAt @db.Timestamptz(6)
+  organization       Organization     @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  influencer         Influencer?      @relation("influencer_users", fields: [organization_id, influencer_id], references: [organization_id, id], onDelete: Restrict)
+  influencer_ratings InfluencerRating[] @relation("user_ratings")
+  influencer_notes   InfluencerNote[] @relation("user_notes")
+  submitted_deliverables Deliverable[] @relation("user_submitted_deliverables")
+
+  @@unique([organization_id, id])
+  @@unique([organization_id, influencer_id])
+  @@index([organization_id])
+  @@map("users")
+}
+
+model Client {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String         @db.Uuid
+  name                  String
+  industry              String?
+  primary_contact_name  String?
+  primary_contact_email String?
+  status                ClientStatus   @default(active)
+  created_at            DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime       @updatedAt @db.Timestamptz(6)
+  organization          Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  companies             Company[]      @relation("client_companies")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, name])
+  @@map("clients")
+}
+
+model Company {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String       @db.Uuid
+  client_id       String       @db.Uuid
+  name            String
+  description     String?
+  status          CompanyStatus @default(active)
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  client          Client       @relation("client_companies", fields: [organization_id, client_id], references: [organization_id, id], onDelete: Cascade)
+  campaigns       Campaign[]   @relation("company_campaigns")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, client_id])
+  @@map("companies")
+}
+
+model Campaign {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id    String            @db.Uuid
+  company_id         String            @db.Uuid
+  name               String
+  description        String?
+  campaign_type      String
+  status             CampaignStatus    @default(draft)
+  start_date         DateTime?         @db.Date
+  end_date           DateTime?         @db.Date
+  budget             Decimal?          @db.Decimal(12, 2)
+  created_at         DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime          @updatedAt @db.Timestamptz(6)
+  organization       Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  company            Company           @relation("company_campaigns", fields: [organization_id, company_id], references: [organization_id, id], onDelete: Cascade)
+  missions           Mission[]         @relation("campaign_missions")
+  influencer_ratings InfluencerRating[] @relation("campaign_ratings")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, company_id])
+  @@index([organization_id, status])
+  @@map("campaigns")
+}
+
+model Mission {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String         @db.Uuid
+  campaign_id     String         @db.Uuid
+  name            String
+  description     String?
+  sequence_order  Int
+  status          MissionStatus  @default(planned)
+  start_date      DateTime?      @db.Date
+  end_date        DateTime?      @db.Date
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @updatedAt @db.Timestamptz(6)
+  organization    Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  campaign        Campaign       @relation("campaign_missions", fields: [organization_id, campaign_id], references: [organization_id, id], onDelete: Cascade)
+  actions         Action[]       @relation("mission_actions")
+
+  @@unique([organization_id, id])
+  @@unique([campaign_id, sequence_order])
+  @@index([organization_id])
+  @@index([organization_id, campaign_id])
+  @@map("missions")
+}
+
+model Action {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String            @db.Uuid
+  mission_id            String            @db.Uuid
+  title                 String
+  platform              SocialPlatform
+  instructions          String?
+  content_format        ContentFormat
+  required_deliverables Int               @default(1)
+  approval_required     Boolean           @default(true)
+  start_window          DateTime?         @db.Timestamptz(6)
+  end_window            DateTime?         @db.Timestamptz(6)
+  status                ActionStatus      @default(draft)
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
+  organization          Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  mission               Mission           @relation("mission_actions", fields: [organization_id, mission_id], references: [organization_id, id], onDelete: Cascade)
+  action_assignments    ActionAssignment[] @relation("action_assignments")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, mission_id])
+  @@index([organization_id, status])
+  @@map("actions")
+}
+
+model Influencer {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id      String              @db.Uuid
+  name                 String
+  email                String?
+  primary_platform     SocialPlatform
+  location             String?
+  audience_description String?
+  status               InfluencerStatus    @default(active)
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @updatedAt @db.Timestamptz(6)
+  organization         Organization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  users                User[]              @relation("influencer_users")
+  action_assignments   ActionAssignment[]  @relation("influencer_assignments")
+  influencer_ratings   InfluencerRating[]  @relation("influencer_ratings")
+  influencer_notes     InfluencerNote[]    @relation("influencer_notes")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, primary_platform])
+  @@map("influencers")
+}
+
+model ActionAssignment {
+  id                           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id              String            @db.Uuid
+  action_id                    String            @db.Uuid
+  influencer_id                String            @db.Uuid
+  assignment_status            AssignmentStatus  @default(assigned)
+  assigned_at                  DateTime          @default(now()) @db.Timestamptz(6)
+  due_date                     DateTime?         @db.Timestamptz(6)
+  completion_date              DateTime?         @db.Timestamptz(6)
+  deliverable_count_expected   Int               @default(1)
+  deliverable_count_submitted  Int               @default(0)
+  created_at                   DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime          @updatedAt @db.Timestamptz(6)
+  organization                 Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  action                       Action            @relation("action_assignments", fields: [organization_id, action_id], references: [organization_id, id], onDelete: Cascade)
+  influencer                   Influencer        @relation("influencer_assignments", fields: [organization_id, influencer_id], references: [organization_id, id], onDelete: Cascade)
+  deliverables                 Deliverable[]     @relation("assignment_deliverables")
+
+  @@unique([organization_id, id])
+  @@unique([action_id, influencer_id])
+  @@index([organization_id])
+  @@index([organization_id, action_id])
+  @@index([organization_id, influencer_id])
+  @@index([organization_id, assignment_status])
+  @@map("action_assignments")
+}
+
+model Deliverable {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id      String            @db.Uuid
+  action_assignment_id String            @db.Uuid
+  deliverable_type     DeliverableType
+  description          String?
+  status               DeliverableStatus @default(pending)
+  submission_url       String?
+  submission_metadata_json Json?
+  rejection_reason     String?
+  submitted_at         DateTime?         @db.Timestamptz(6)
+  approved_at          DateTime?         @db.Timestamptz(6)
+  submitted_by_user_id String?           @db.Uuid
+  created_at           DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime          @updatedAt @db.Timestamptz(6)
+  organization         Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  action_assignment    ActionAssignment  @relation("assignment_deliverables", fields: [organization_id, action_assignment_id], references: [organization_id, id], onDelete: Cascade)
+  submitted_by_user    User?             @relation("user_submitted_deliverables", fields: [organization_id, submitted_by_user_id], references: [organization_id, id], onDelete: Restrict)
+  posts                Post[]            @relation("deliverable_posts")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, action_assignment_id])
+  @@index([organization_id, submitted_by_user_id])
+  @@index([organization_id, status])
+  @@map("deliverables")
+}
+
+model Post {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String              @db.Uuid
+  deliverable_id  String              @db.Uuid
+  platform        SocialPlatform
+  external_post_id String?
+  post_url        String
+  caption         String?
+  media_type      PostMediaType
+  posted_at       DateTime?           @db.Timestamptz(6)
+  created_at      DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime            @updatedAt @db.Timestamptz(6)
+  organization    Organization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  deliverable     Deliverable         @relation("deliverable_posts", fields: [organization_id, deliverable_id], references: [organization_id, id], onDelete: Cascade)
+  performance_snapshots PerformanceSnapshot[] @relation("post_performance_snapshots")
+  import_logs      ImportLog[]         @relation("post_import_logs")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, deliverable_id])
+  @@index([organization_id, platform])
+  @@map("posts")
+}
+
+model PerformanceSnapshot {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String         @db.Uuid
+  post_id         String         @db.Uuid
+  captured_at     DateTime       @db.Timestamptz(6)
+  impressions     Int            @default(0)
+  reach           Int            @default(0)
+  views           Int            @default(0)
+  video_views     Int            @default(0)
+  likes           Int            @default(0)
+  comments        Int            @default(0)
+  shares          Int            @default(0)
+  saves           Int            @default(0)
+  clicks          Int            @default(0)
+  conversions     Int            @default(0)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @updatedAt @db.Timestamptz(6)
+  organization    Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  post            Post           @relation("post_performance_snapshots", fields: [organization_id, post_id], references: [organization_id, id], onDelete: Cascade)
+
+  @@unique([organization_id, id])
+  @@unique([post_id, captured_at])
+  @@index([organization_id])
+  @@index([post_id, captured_at])
+  @@index([organization_id, post_id, captured_at])
+  @@map("performance_snapshots")
+}
+
+model InfluencerRating {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String       @db.Uuid
+  influencer_id         String       @db.Uuid
+  campaign_id           String       @db.Uuid
+  rater_user_id         String       @db.Uuid
+  content_quality_score Int
+  reliability_score     Int
+  audience_fit_score    Int
+  communication_score   Int
+  brand_safety_score    Int
+  overall_score         Decimal      @db.Decimal(3, 2)
+  notes                 String?
+  created_at            DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime     @updatedAt @db.Timestamptz(6)
+  organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  influencer            Influencer   @relation("influencer_ratings", fields: [organization_id, influencer_id], references: [organization_id, id], onDelete: Cascade)
+  campaign              Campaign     @relation("campaign_ratings", fields: [organization_id, campaign_id], references: [organization_id, id], onDelete: Cascade)
+  rater_user            User         @relation("user_ratings", fields: [organization_id, rater_user_id], references: [organization_id, id], onDelete: Restrict)
+
+  @@unique([organization_id, id])
+  @@unique([campaign_id, influencer_id, rater_user_id])
+  @@index([organization_id])
+  @@index([organization_id, campaign_id])
+  @@index([organization_id, influencer_id])
+  @@map("influencer_ratings")
+}
+
+model InfluencerNote {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String       @db.Uuid
+  influencer_id   String       @db.Uuid
+  author_user_id  String       @db.Uuid
+  note_text       String
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  influencer      Influencer   @relation("influencer_notes", fields: [organization_id, influencer_id], references: [organization_id, id], onDelete: Cascade)
+  author_user     User         @relation("user_notes", fields: [organization_id, author_user_id], references: [organization_id, id], onDelete: Restrict)
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, influencer_id])
+  @@map("influencer_notes")
+}
+
+model AuditLog {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id  String             @db.Uuid
+  entity_type      String
+  entity_id        String             @db.Uuid
+  parent_entity_type String?
+  parent_entity_id String?            @db.Uuid
+  event_type       String
+  previous_value   Json?
+  new_value        Json?
+  changed_by_type  AuditChangedByType
+  changed_by_id    String?            @db.Uuid
+  reason           String?
+  metadata_json    Json?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @updatedAt @db.Timestamptz(6)
+  organization     Organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, entity_type, entity_id])
+  @@index([organization_id, parent_entity_type, parent_entity_id])
+  @@map("audit_logs")
+}
+
+model ImportLog {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String          @db.Uuid
+  post_id           String          @db.Uuid
+  platform          SocialPlatform
+  status            ImportLogStatus @default(queued)
+  requested_at      DateTime        @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime?       @db.Timestamptz(6)
+  error_message     String?
+  raw_metadata_json Json?
+  created_at        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime        @updatedAt @db.Timestamptz(6)
+  organization      Organization    @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  post              Post            @relation("post_import_logs", fields: [organization_id, post_id], references: [organization_id, id], onDelete: Cascade)
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, post_id])
+  @@index([organization_id, platform, status])
+  @@map("import_logs")
+}
+
+model PostPerformanceSummary {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String       @db.Uuid
+  post_id           String       @db.Uuid
+  platform          SocialPlatform
+  total_impressions Int          @default(0)
+  total_engagement  Int          @default(0)
+  engagement_rate   Float        @default(0)
+  total_posts       Int          @default(1)
+  total_influencers Int          @default(1)
+  last_snapshot_at  DateTime?    @db.Timestamptz(6)
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, post_id])
+  @@index([organization_id])
+  @@index([organization_id, platform])
+  @@map("post_performance_summaries")
+}
+
+model ActionPerformanceSummary {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String       @db.Uuid
+  action_id         String       @db.Uuid
+  total_impressions Int          @default(0)
+  total_engagement  Int          @default(0)
+  engagement_rate   Float        @default(0)
+  total_posts       Int          @default(0)
+  total_influencers Int          @default(0)
+  last_snapshot_at  DateTime?    @db.Timestamptz(6)
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, action_id])
+  @@index([organization_id])
+  @@map("action_performance_summaries")
+}
+
+model MissionPerformanceSummary {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String       @db.Uuid
+  mission_id        String       @db.Uuid
+  total_impressions Int          @default(0)
+  total_engagement  Int          @default(0)
+  engagement_rate   Float        @default(0)
+  total_posts       Int          @default(0)
+  total_influencers Int          @default(0)
+  last_snapshot_at  DateTime?    @db.Timestamptz(6)
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, mission_id])
+  @@index([organization_id])
+  @@map("mission_performance_summaries")
+}
+
+model CampaignPerformanceSummary {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String       @db.Uuid
+  campaign_id       String       @db.Uuid
+  total_impressions Int          @default(0)
+  total_engagement  Int          @default(0)
+  engagement_rate   Float        @default(0)
+  total_posts       Int          @default(0)
+  total_influencers Int          @default(0)
+  last_snapshot_at  DateTime?    @db.Timestamptz(6)
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, campaign_id])
+  @@index([organization_id])
+  @@map("campaign_performance_summaries")
+}
+
+model InfluencerPerformanceSummary {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String       @db.Uuid
+  influencer_id     String       @db.Uuid
+  total_impressions Int          @default(0)
+  total_engagement  Int          @default(0)
+  engagement_rate   Float        @default(0)
+  total_posts       Int          @default(0)
+  total_influencers Int          @default(1)
+  last_snapshot_at  DateTime?    @db.Timestamptz(6)
+  created_at        DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, influencer_id])
+  @@index([organization_id])
+  @@map("influencer_performance_summaries")
+}

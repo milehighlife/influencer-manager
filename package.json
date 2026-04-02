@@ -1,0 +1,51 @@
+{
+  "name": "influencer-manager",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:mobile": "npm run dev --workspace @influencer-manager/mobile",
+    "dev:api": "npm run dev --workspace @influencer-manager/api",
+    "dev:web": "npm run dev --workspace @influencer-manager/web",
+    "dev:worker": "npm run dev:worker --workspace @influencer-manager/api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "db:generate": "prisma generate --schema db/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema db/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema db/schema.prisma",
+    "db:seed": "prisma db seed --schema db/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "overrides": {
+    "react": "19.0.0",
+    "react-test-renderer": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "4.11.1"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "prisma": "^6.0.0",
+    "react": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "4.11.1",
+    "react-test-renderer": "19.0.0",
+    "tsx": "^4.19.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2"
+  },
+  "prisma": {
+    "seed": "tsx db/seed.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

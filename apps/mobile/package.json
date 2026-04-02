@@ -1,0 +1,40 @@
+{
+  "name": "@influencer-manager/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "main": "./index.ts",
+  "scripts": {
+    "dev": "expo start",
+    "build": "expo export --platform all",
+    "test": "jest --runInBand",
+    "test:runtime:creator": "bash ./scripts/run-creator-runtime-smoke.sh",
+    "test:runtime:creator:android": "MOBILE_RUNTIME_PLATFORM=android bash ./scripts/run-creator-runtime-smoke.sh",
+    "lint": "echo 'Mobile lint placeholder'",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@influencer-manager/shared": "*",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-navigation/bottom-tabs": "^7.15.5",
+    "@react-navigation/native": "^7.1.33",
+    "@react-navigation/stack": "^7.8.4",
+    "@tanstack/react-query": "^5.75.7",
+    "expo": "^53.0.0",
+    "expo-status-bar": "^2.2.3",
+    "react": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.0.10",
+    "jest": "^29.7.0",
+    "jest-expo": "~53.0.0",
+    "react-test-renderer": "19.0.0",
+    "typescript": "^5.8.2"
+  }
+}

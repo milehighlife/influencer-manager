@@ -1,0 +1,14 @@
+node_modules
+.turbo
+dist
+.expo
+.DS_Store
+coverage
+*.log
+.env
+.env.local
+apps/mobile/.expo
+apps/mobile/.expo-shared
+test-results
+tmp-playwright-debug.png
+.claude
