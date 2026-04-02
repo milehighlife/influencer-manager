@@ -30,18 +30,19 @@ const styles = StyleSheet.create({
     ...mobileTheme.shadow,
   },
   eyebrow: {
-    marginBottom: mobileTheme.spacing.xs,
+    marginBottom: mobileTheme.spacing.sm,
     color: mobileTheme.colors.accent,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
   },
   title: {
     marginBottom: mobileTheme.spacing.md,
     color: mobileTheme.colors.text,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
+    lineHeight: 28,
   },
   footer: {
     marginTop: mobileTheme.spacing.md,

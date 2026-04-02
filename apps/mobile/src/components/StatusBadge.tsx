@@ -51,12 +51,15 @@ export function StatusBadge({ status, label }: StatusBadgeProps) {
 const styles = StyleSheet.create({
   badge: {
     alignSelf: "flex-start",
-    borderRadius: mobileTheme.radius.pill,
-    paddingHorizontal: 10,
+    borderRadius: mobileTheme.radius.sm,
+    paddingHorizontal: 12,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.08)",
   },
   label: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
 });
