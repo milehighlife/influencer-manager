@@ -17,7 +17,9 @@ export function formatDate(
     month: "short",
     day: "numeric",
     year: "numeric",
-    ...(options.mode === "datetime" ? {} : { timeZone: "UTC" }),
+    ...(options.mode === "datetime"
+      ? { hour: "numeric", minute: "2-digit" }
+      : { timeZone: "UTC" }),
   }).format(date);
 }
 

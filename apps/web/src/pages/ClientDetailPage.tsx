@@ -263,9 +263,14 @@ export function ClientDetailPage({ canPlan }: { canPlan: boolean }) {
         eyebrow="Client"
         title={client.name}
         actions={
-          <Link className="secondary-button" to="/clients">
-            Back to clients
-          </Link>
+          <div className="inline-actions">
+            <Link className="secondary-button" to={`/clients/${clientId}/media`}>
+              Media Library
+            </Link>
+            <Link className="secondary-button" to="/clients">
+              Back to clients
+            </Link>
+          </div>
         }
       >
         <div className="detail-fields">

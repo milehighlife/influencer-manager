@@ -159,6 +159,29 @@ enum PostMediaType {
   @@map("post_media_type")
 }
 
+enum AssetSourceType {
+  upload
+  external_link
+
+  @@map("asset_source_type")
+}
+
+enum AssetCategory {
+  logo
+  brand_guidelines
+  product_photo
+  video_broll
+  copy_caption
+  hashtag_list
+  mood_board
+  template
+  font
+  color_palette
+  other
+
+  @@map("asset_category")
+}
+
 enum AuditChangedByType {
   user
   influencer
@@ -211,6 +234,22 @@ enum NotificationRecipientType {
   @@map("notification_recipient_type")
 }
 
+enum ConversationParticipantStatus {
+  active
+  archived
+  snoozed
+
+  @@map("conversation_participant_status")
+}
+
+enum NotificationPreference {
+  all_messages
+  replies_only
+  none
+
+  @@map("notification_preference")
+}
+
 enum ImportLogStatus {
   queued
   running
@@ -251,6 +290,7 @@ model Organization {
   message_templates     MessageTemplate[]
   conversations         Conversation[]
   notifications         Notification[]
+  campaign_assets       CampaignAsset[]
 
   @@map("organizations")
 }
@@ -263,10 +303,11 @@ model User {
   email              String           @unique
   password_hash      String?
   role               UserRole
-  status             UserStatus       @default(invited)
-  created_at         DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime         @updatedAt @db.Timestamptz(6)
-  organization       Organization     @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  status                  UserStatus             @default(invited)
+  notification_preference NotificationPreference @default(replies_only)
+  created_at              DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime               @updatedAt @db.Timestamptz(6)
+  organization            Organization           @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   influencer         Influencer?      @relation("influencer_users", fields: [organization_id, influencer_id], references: [organization_id, id], onDelete: Restrict)
   influencer_ratings InfluencerRating[] @relation("user_ratings")
   influencer_notes   InfluencerNote[] @relation("user_notes")
@@ -275,6 +316,7 @@ model User {
   created_conversations Conversation[] @relation("user_created_conversations")
   conversation_participations ConversationParticipant[] @relation("user_participations")
   sent_messages         Message[] @relation("user_sent_messages")
+  uploaded_assets       CampaignAsset[] @relation("user_uploaded_assets")
 
   @@unique([organization_id, id])
   @@unique([organization_id, influencer_id])
@@ -297,6 +339,7 @@ model Client {
   organization          Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   companies             Company[]      @relation("client_companies")
   influencer_clients    InfluencerClient[] @relation("client_influencer_clients")
+  campaign_assets       CampaignAsset[]    @relation("client_campaign_assets")
 
   @@unique([organization_id, id])
   @@index([organization_id])
@@ -330,6 +373,7 @@ model Company {
   organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   client          Client       @relation("client_companies", fields: [organization_id, client_id], references: [organization_id, id], onDelete: Cascade)
   campaigns       Campaign[]   @relation("company_campaigns")
+  campaign_assets CampaignAsset[] @relation("company_campaign_assets")
 
   @@unique([organization_id, id])
   @@index([organization_id])
@@ -355,6 +399,7 @@ model Campaign {
   company            Company           @relation("company_campaigns", fields: [organization_id, company_id], references: [organization_id, id], onDelete: Cascade)
   missions           Mission[]         @relation("campaign_missions")
   influencer_ratings InfluencerRating[] @relation("campaign_ratings")
+  campaign_assets   CampaignAsset[]    @relation("campaign_assets")
 
   @@unique([organization_id, id])
   @@index([organization_id])
@@ -409,6 +454,7 @@ model Action {
   organization          Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   mission               Mission           @relation("mission_actions", fields: [organization_id, mission_id], references: [organization_id, id], onDelete: Cascade)
   action_assignments    ActionAssignment[] @relation("action_assignments")
+  asset_links           CampaignAssetAction[] @relation("action_asset_links")
 
   @@unique([organization_id, id])
   @@index([organization_id])
@@ -819,10 +865,12 @@ model Conversation {
   id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organization_id     String                  @db.Uuid
   subject             String
-  related_entity_type ConversationEntityType?
-  related_entity_id   String?                 @db.Uuid
-  created_by_id       String?                 @db.Uuid
-  created_at          DateTime                @default(now()) @db.Timestamptz(6)
+  related_entity_type  ConversationEntityType?
+  related_entity_id    String?                 @db.Uuid
+  outreach_batch_id    String?                 @db.Uuid
+  outreach_template_name String?
+  created_by_id        String?                 @db.Uuid
+  created_at           DateTime                @default(now()) @db.Timestamptz(6)
   updated_at          DateTime                @updatedAt @db.Timestamptz(6)
   organization        Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   created_by          User?                   @relation("user_created_conversations", fields: [organization_id, created_by_id], references: [organization_id, id], onDelete: SetNull)
@@ -832,6 +880,7 @@ model Conversation {
   @@unique([organization_id, id])
   @@index([organization_id])
   @@index([organization_id, related_entity_type, related_entity_id])
+  @@index([organization_id, outreach_batch_id])
   @@map("conversations")
 }
 
@@ -840,6 +889,8 @@ model ConversationParticipant {
   conversation_id String       @db.Uuid
   user_id         String?      @db.Uuid
   influencer_id   String?      @db.Uuid
+  status          ConversationParticipantStatus @default(active)
+  snoozed_until   DateTime?    @db.Timestamptz(6)
   joined_at       DateTime     @default(now()) @db.Timestamptz(6)
   last_read_at    DateTime?    @db.Timestamptz(6)
   conversation    Conversation @relation("conversation_participants", fields: [conversation_id], references: [id], onDelete: Cascade)
@@ -920,4 +971,56 @@ model AutomatedMessageLog {
   @@index([organization_id])
   @@index([assignment_id])
   @@map("automated_message_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Campaign Media Library
+// ---------------------------------------------------------------------------
+
+model CampaignAsset {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String          @db.Uuid
+  campaign_id     String          @db.Uuid
+  client_id       String          @db.Uuid
+  company_id      String          @db.Uuid
+  name            String
+  description     String?
+  source_type     AssetSourceType
+  file_url        String
+  file_name       String?
+  file_size_bytes Int?
+  mime_type       String?
+  thumbnail_url   String?
+  category        AssetCategory   @default(other)
+  tags            String[]        @default([])
+  sort_order      Int             @default(0)
+  uploaded_by_id  String?         @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime        @updatedAt @db.Timestamptz(6)
+  organization    Organization    @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  campaign        Campaign        @relation("campaign_assets", fields: [campaign_id], references: [id], onDelete: Cascade)
+  client          Client          @relation("client_campaign_assets", fields: [client_id], references: [id], onDelete: Cascade)
+  company         Company         @relation("company_campaign_assets", fields: [company_id], references: [id], onDelete: Cascade)
+  uploaded_by     User?           @relation("user_uploaded_assets", fields: [uploaded_by_id], references: [id], onDelete: SetNull)
+  action_links    CampaignAssetAction[] @relation("asset_action_links")
+
+  @@index([organization_id])
+  @@index([organization_id, campaign_id])
+  @@index([client_id, created_at(sort: Desc)])
+  @@index([organization_id, company_id])
+  @@index([organization_id, category])
+  @@map("campaign_assets")
+}
+
+model CampaignAssetAction {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaign_asset_id String        @db.Uuid
+  action_id         String        @db.Uuid
+  campaign_asset    CampaignAsset @relation("asset_action_links", fields: [campaign_asset_id], references: [id], onDelete: Cascade)
+  action            Action        @relation("action_asset_links", fields: [action_id], references: [id], onDelete: Cascade)
+
+  @@unique([campaign_asset_id, action_id])
+  @@index([campaign_asset_id])
+  @@index([action_id])
+  @@map("campaign_asset_actions")
 }

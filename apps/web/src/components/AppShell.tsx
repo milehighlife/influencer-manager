@@ -7,7 +7,8 @@ import {
   useUnratedPublishedActions,
   useOverdueActions,
 } from "../hooks/use-campaign-builder";
-import { useConversationList } from "../hooks/use-messaging";
+import { conversationsApi } from "../services/api/messaging";
+import { useQuery } from "@tanstack/react-query";
 import { NotificationBell } from "./NotificationBell";
 
 interface AppShellProps extends PropsWithChildren {
@@ -29,8 +30,12 @@ export function AppShell({
   const { meta: overdueMeta } = useOverdueActions(undefined, 1, 1);
   const hasActionAlerts =
     (unratedMeta?.total ?? 0) > 0 || (overdueMeta?.total ?? 0) > 0;
-  const { meta: unreadInboxMeta } = useConversationList({ unread: true, limit: 1 });
-  const unreadInboxCount = unreadInboxMeta?.total ?? 0;
+  const unreadInboxQuery = useQuery({
+    queryKey: ["web", "conversations", "unread-count"],
+    queryFn: () => conversationsApi.getUnreadCount(),
+    refetchInterval: 30000,
+  });
+  const unreadInboxCount = unreadInboxQuery.data?.unread ?? 0;
 
   return (
     <div className="app-shell">

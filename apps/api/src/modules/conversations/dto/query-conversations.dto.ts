@@ -14,6 +14,37 @@ export class QueryConversationsDto extends PaginationQueryDto {
   @Transform(({ value }) => value === "true" || value === true)
   @IsBoolean()
   unread?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === "true" || value === true)
+  @IsBoolean()
+  needs_reply?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === "true" || value === true)
+  @IsBoolean()
+  sent_by_me?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === "true" || value === true)
+  @IsBoolean()
+  show_batches?: boolean;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  related_entity_type?: string;
+
+  @IsOptional()
+  @IsLooseUuid()
+  related_entity_id?: string;
+
+  @IsOptional()
+  @IsLooseUuid()
+  influencer_id?: string;
 }
 
 export class QueryByEntityDto {

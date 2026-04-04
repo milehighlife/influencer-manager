@@ -70,6 +70,13 @@ export const messageTemplatesApi = {
 export interface ConversationListParams extends PaginationParams {
   search?: string;
   unread?: boolean;
+  needs_reply?: boolean;
+  sent_by_me?: boolean;
+  show_batches?: boolean;
+  status?: string;
+  related_entity_type?: string;
+  related_entity_id?: string;
+  influencer_id?: string;
 }
 
 export interface CreateConversationPayload {
@@ -94,6 +101,13 @@ export const conversationsApi = {
         ...createPaginationParams(params),
         search: params.search,
         unread: params.unread != null ? String(params.unread) : undefined,
+        needs_reply: params.needs_reply != null ? String(params.needs_reply) : undefined,
+        sent_by_me: params.sent_by_me != null ? String(params.sent_by_me) : undefined,
+        show_batches: params.show_batches != null ? String(params.show_batches) : undefined,
+        status: params.status,
+        related_entity_type: params.related_entity_type,
+        related_entity_id: params.related_entity_id,
+        influencer_id: params.influencer_id,
       },
     );
   },
@@ -118,11 +132,74 @@ export const conversationsApi = {
   markAsRead(id: string) {
     return apiClient.post<{ success: boolean }>(`/conversations/${id}/read`);
   },
+  archive(id: string) {
+    return apiClient.post<{ success: boolean }>(`/conversations/${id}/archive`);
+  },
+  unarchive(id: string) {
+    return apiClient.post<{ success: boolean }>(`/conversations/${id}/unarchive`);
+  },
+  snooze(id: string, until: string) {
+    return apiClient.post<{ success: boolean }>(`/conversations/${id}/snooze`, { until });
+  },
+  getUnreadCount() {
+    return apiClient.get<{ unread: number }>("/conversations/unread-count");
+  },
+  bulkActionAll(action: "read" | "unread" | "archive", filter: { status?: string; search?: string }) {
+    return apiClient.post<{ success: boolean; updated: number }>("/conversations/bulk-action-all", {
+      action,
+      ...filter,
+    });
+  },
+  bulkMarkRead(conversationIds: string[]) {
+    return apiClient.post<{ success: boolean }>("/conversations/bulk-read", {
+      conversation_ids: conversationIds,
+    });
+  },
+  bulkMarkUnread(conversationIds: string[]) {
+    return apiClient.post<{ success: boolean }>("/conversations/bulk-unread", {
+      conversation_ids: conversationIds,
+    });
+  },
+  bulkArchive(conversationIds: string[]) {
+    return apiClient.post<{ success: boolean; archived: number }>("/conversations/bulk-archive", {
+      conversation_ids: conversationIds,
+    });
+  },
+  getBatchGroups() {
+    return apiClient.get<Array<{
+      batch_id: string;
+      template_name: string;
+      total_conversations: number;
+      replied: number;
+      unread_replies: number;
+    }>>("/conversations/batch-groups");
+  },
+  getBatchConversations(batchId: string) {
+    return apiClient.get<Array<{
+      id: string;
+      subject: string;
+      influencer_name: string | null;
+      last_message: { body: string; sender_type: string; created_at: string } | null;
+      unread: boolean;
+      message_count: number;
+      updated_at: string;
+    }>>(`/conversations/batch/${batchId}`);
+  },
   listByEntity(entityType: string, entityId: string) {
     return apiClient.get<ConversationListItem[]>("/conversations/by-entity", {
       entity_type: entityType,
       entity_id: entityId,
     });
+  },
+  listByInfluencer(influencerId: string) {
+    return apiClient.get<Array<{
+      id: string;
+      subject: string;
+      created_at: string;
+      updated_at: string;
+      last_message_at: string;
+      unread: boolean;
+    }>>(`/conversations/by-influencer/${influencerId}`);
   },
 };
 

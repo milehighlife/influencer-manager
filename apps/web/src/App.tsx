@@ -31,6 +31,7 @@ const InfluencerActionDetailPage = lazy(() => import("./pages/InfluencerActionDe
 const TemplateListPage = lazy(() => import("./pages/TemplateListPage").then((m) => ({ default: m.TemplateListPage })));
 const TemplateEditorPage = lazy(() => import("./pages/TemplateEditorPage").then((m) => ({ default: m.TemplateEditorPage })));
 const InboxPage = lazy(() => import("./pages/InboxPage").then((m) => ({ default: m.InboxPage })));
+const ClientMediaLibraryPage = lazy(() => import("./pages/ClientMediaLibraryPage").then((m) => ({ default: m.ClientMediaLibraryPage })));
 const ConversationPage = lazy(() => import("./pages/ConversationPage").then((m) => ({ default: m.ConversationPage })));
 
 function PageFallback() {
@@ -88,6 +89,10 @@ function AppRoutes() {
           <Route
             path="/clients/:clientId"
             element={<ClientDetailPage canPlan={canPlan} />}
+          />
+          <Route
+            path="/clients/:clientId/media"
+            element={<ClientMediaLibraryPage />}
           />
           <Route
             path="/companies/:companyId"

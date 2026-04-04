@@ -12,8 +12,17 @@ import { ConversationEntityType } from "@prisma/client";
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
 
 export class BulkOutreachDto {
+  @IsOptional()
   @IsLooseUuid()
-  template_id!: string;
+  template_id?: string;
+
+  @IsOptional()
+  @IsString()
+  subject?: string;
+
+  @IsOptional()
+  @IsString()
+  body?: string;
 
   @IsArray()
   @ArrayMinSize(1)

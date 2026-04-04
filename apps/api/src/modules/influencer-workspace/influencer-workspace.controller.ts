@@ -143,6 +143,19 @@ export class InfluencerWorkspaceController {
     );
   }
 
+  @Get("assignments/:id/campaign-assets")
+  getAssignmentCampaignAssets(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.influencerWorkspaceService.getAssignmentCampaignAssets(
+      organizationId,
+      user,
+      id,
+    );
+  }
+
   @Get("conversations")
   listConversations(
     @CurrentOrganizationId() organizationId: string,

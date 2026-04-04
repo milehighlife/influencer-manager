@@ -5,6 +5,7 @@ import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
 import { PageSection } from "../components/PageSection";
 import { StatusBadge } from "../components/StatusBadge";
+import { useInfluencerConversations } from "../hooks/use-messaging";
 import {
   useInfluencerAssignments,
   useInfluencerClients,
@@ -534,6 +535,52 @@ export function InfluencerDetailPage({ canPlan }: { canPlan: boolean }) {
           </table>
         )}
       </PageSection>
+
+      <InfluencerMessagesSection influencerId={influencerId!} />
     </div>
+  );
+}
+
+function InfluencerMessagesSection({ influencerId }: { influencerId: string }) {
+  const { data: conversations, isLoading } = useInfluencerConversations(influencerId);
+
+  return (
+    <PageSection eyebrow="Communication" title="Messages">
+      {isLoading ? <p className="muted">Loading messages...</p> : null}
+      {!isLoading && (!conversations || conversations.length === 0) ? (
+        <EmptyState
+          title="No messages"
+          message="No message threads with this influencer yet."
+        />
+      ) : null}
+      {!isLoading && conversations && conversations.length > 0 ? (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {conversations.map((conv) => (
+              <tr key={conv.id} className={conv.unread ? "inbox-row-unread" : ""}>
+                <td>
+                  <Link to={`/inbox/${conv.id}`}>
+                    {conv.unread ? (
+                      <strong>{conv.subject}</strong>
+                    ) : (
+                      conv.subject
+                    )}
+                  </Link>
+                </td>
+                <td style={conv.unread ? { fontWeight: 600 } : undefined}>
+                  {formatDate(conv.last_message_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </PageSection>
   );
 }

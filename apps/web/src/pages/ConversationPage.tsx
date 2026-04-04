@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingPage } from "../components/LoadingPage";
 import { PageSection } from "../components/PageSection";
+import { useCampaignPlanningViewQuery } from "../hooks/use-campaign-builder";
 import {
   useConversation,
   useConversationMessages,
@@ -60,6 +61,17 @@ export function ConversationPage() {
     }
   }
 
+  const conversation = conversationQuery.data ?? null;
+
+  // Resolve campaign name if the related entity is a campaign
+  const relatedCampaignId =
+    conversation?.related_entity_type === "campaign"
+      ? conversation.related_entity_id
+      : undefined;
+  const campaignQuery = useCampaignPlanningViewQuery(
+    relatedCampaignId ?? undefined,
+  );
+
   if (conversationQuery.isLoading) {
     return <LoadingPage label="Loading conversation..." />;
   }
@@ -75,13 +87,19 @@ export function ConversationPage() {
     );
   }
 
-  const conversation = conversationQuery.data;
   if (!conversation) return null;
 
   const entityLink =
     conversation.related_entity_type && conversation.related_entity_id
       ? `${ENTITY_ROUTE_MAP[conversation.related_entity_type] ?? ""}/${conversation.related_entity_id}`
       : null;
+
+  const entityLabel =
+    conversation.related_entity_type === "campaign" && campaignQuery.data
+      ? campaignQuery.data.name
+      : conversation.related_entity_type
+        ? `${conversation.related_entity_type}`
+        : null;
 
   return (
     <div className="page-stack">
@@ -97,13 +115,10 @@ export function ConversationPage() {
             <strong>Participants:</strong>{" "}
             {conversation.participants.map((p) => p.name).join(", ")}
           </p>
-          {entityLink ? (
+          {entityLink && entityLabel ? (
             <p className="muted">
               <strong>Related:</strong>{" "}
-              <Link to={entityLink}>
-                {conversation.related_entity_type} &rarr;{" "}
-                {conversation.related_entity_id}
-              </Link>
+              <Link to={entityLink}>{entityLabel}</Link>
             </p>
           ) : null}
         </div>
@@ -231,21 +246,20 @@ export function ConversationPage() {
               required
             />
           </label>
-          <label className="field" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <input
-              type="checkbox"
-              checked={sendViaEmail}
-              onChange={(event) => setSendViaEmail(event.target.checked)}
-              style={{ width: "auto" }}
-            />
-            <span>Also send via email</span>
-          </label>
           {sendMutation.isError ? (
             <p className="error-copy field-span-2">
               {sendMutation.error.message}
             </p>
           ) : null}
-          <div className="field-span-2 form-actions">
+          <div className="field-span-2 form-actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--color-ink-secondary)", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={sendViaEmail}
+                onChange={(event) => setSendViaEmail(event.target.checked)}
+              />
+              Also send via email
+            </label>
             <button
               className="primary-button"
               type="submit"

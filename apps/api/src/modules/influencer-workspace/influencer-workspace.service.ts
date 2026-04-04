@@ -1038,4 +1038,77 @@ export class InfluencerWorkspaceService {
       summary,
     };
   }
+
+  async getAssignmentCampaignAssets(
+    organizationId: string,
+    user: AuthenticatedUser,
+    assignmentId: string,
+  ) {
+    const influencerId = this.getRequiredInfluencerId(user);
+
+    const assignment = await this.prisma.actionAssignment.findFirst({
+      where: {
+        id: assignmentId,
+        organization_id: organizationId,
+        influencer_id: influencerId,
+      },
+      select: {
+        action_id: true,
+        action: {
+          select: {
+            mission: {
+              select: { campaign_id: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException("Assignment not found.");
+    }
+
+    const campaignId = assignment.action.mission.campaign_id;
+
+    const allAssets = await this.prisma.campaignAsset.findMany({
+      where: {
+        organization_id: organizationId,
+        campaign_id: campaignId,
+      },
+      include: {
+        action_links: { select: { action_id: true } },
+        uploaded_by: { select: { full_name: true } },
+      },
+      orderBy: [{ sort_order: "asc" }, { created_at: "desc" }],
+    });
+
+    const actionSpecific = allAssets.filter((a) =>
+      a.action_links.some((l) => l.action_id === assignment.action_id),
+    );
+    const campaignLevel = allAssets.filter(
+      (a) =>
+        a.action_links.length === 0 ||
+        !a.action_links.some((l) => l.action_id === assignment.action_id),
+    );
+
+    const mapAsset = (a: typeof allAssets[number]) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      source_type: a.source_type,
+      file_url: a.file_url,
+      file_name: a.file_name,
+      file_size_bytes: a.file_size_bytes,
+      mime_type: a.mime_type,
+      thumbnail_url: a.thumbnail_url,
+      category: a.category,
+      tags: a.tags,
+      created_at: a.created_at.toISOString(),
+    });
+
+    return {
+      action_assets: actionSpecific.map(mapAsset),
+      campaign_assets: campaignLevel.map(mapAsset),
+    };
+  }
 }

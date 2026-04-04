@@ -1,13 +1,12 @@
 import { Module } from "@nestjs/common";
 
-import { JobsModule } from "../../jobs/jobs.module";
+import { BulkOutreachProcessor } from "../../jobs/processors/bulk-outreach.processor";
 import { ConversationsController } from "./conversations.controller";
 import { ConversationsService } from "./conversations.service";
 
 @Module({
-  imports: [JobsModule],
   controllers: [ConversationsController],
-  providers: [ConversationsService],
+  providers: [ConversationsService, BulkOutreachProcessor],
   exports: [ConversationsService],
 })
 export class ConversationsModule {}

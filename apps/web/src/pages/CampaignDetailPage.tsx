@@ -8,12 +8,21 @@ import {
 } from "@influencer-manager/shared/types/mobile";
 import type { CampaignStatus } from "@influencer-manager/shared/types/mobile";
 
-import { ComposeMessageDialog } from "../components/ComposeMessageDialog";
+import { AddExternalLinkDialog } from "../components/AddExternalLinkDialog";
+import { AssetUploadZone } from "../components/AssetUploadZone";
+import { BulkCampaignMessageDialog } from "../components/BulkCampaignMessageDialog";
 import { ConfirmCascadeDialog } from "../components/ConfirmCascadeDialog";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { MediaLibrary } from "../components/MediaLibrary";
 import { PageSection } from "../components/PageSection";
 import { StatusBadge } from "../components/StatusBadge";
+import {
+  useCampaignAssets,
+  useCreateAssetMutation,
+  useDeleteAssetMutation,
+  useUpdateAssetMutation,
+} from "../hooks/use-campaign-assets";
 import {
   getLookupHelperMessage,
   useCampaignPlanningViewQuery,
@@ -391,10 +400,7 @@ function CampaignInfluencersSection({
 }) {
   const [removing, setRemoving] = useState<string | null>(null);
   const [teamPage, setTeamPage] = useState(1);
-  const [messagingInfluencer, setMessagingInfluencer] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const [showMessageAll, setShowMessageAll] = useState(false);
   const teamPageSize = 20;
 
   const influencerMap = new Map<
@@ -453,11 +459,22 @@ function CampaignInfluencersSection({
       eyebrow="Team"
       title="Influencers"
       actions={
-        campaign.status !== "completed" && campaign.status !== "archived" ? (
-          <Link className="primary-button" to={`/campaigns/${campaign.id}/assign`}>
-            Assign Influencer
-          </Link>
-        ) : undefined
+        <div className="inline-actions">
+          {influencers.length > 0 ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setShowMessageAll(true)}
+            >
+              Message All
+            </button>
+          ) : null}
+          {campaign.status !== "completed" && campaign.status !== "archived" ? (
+            <Link className="primary-button" to={`/campaigns/${campaign.id}/assign`}>
+              Assign Influencer
+            </Link>
+          ) : null}
+        </div>
       }
     >
       {influencers.length === 0 ? (
@@ -486,7 +503,6 @@ function CampaignInfluencersSection({
                   </span>
                 ) : null}
               </th>
-              <th></th>
               {campaign.status !== "completed" && campaign.status !== "archived" ? <th></th> : null}
             </tr>
           </thead>
@@ -498,15 +514,6 @@ function CampaignInfluencersSection({
                 </td>
                 <td>
                   {inf.completed} / {inf.totalAssigned}
-                </td>
-                <td>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => setMessagingInfluencer({ id: inf.id, name: inf.name })}
-                  >
-                    Message
-                  </button>
                 </td>
                 {campaign.status !== "completed" && campaign.status !== "archived" ? (
                   <td>
@@ -608,14 +615,14 @@ function CampaignInfluencersSection({
         </>
       )}
 
-      {messagingInfluencer ? (
-        <ComposeMessageDialog
-          influencerId={messagingInfluencer.id}
-          influencerName={messagingInfluencer.name}
-          relatedEntityType="campaign"
-          relatedEntityId={campaign.id}
-          onClose={() => setMessagingInfluencer(null)}
-          onSuccess={() => setMessagingInfluencer(null)}
+      {showMessageAll ? (
+        <BulkCampaignMessageDialog
+          campaignId={campaign.id}
+          campaignName={campaign.name}
+          influencerIds={influencers.map((inf) => inf.id)}
+          influencerCount={influencers.length}
+          onClose={() => setShowMessageAll(false)}
+          onSuccess={() => setShowMessageAll(false)}
         />
       ) : null}
     </PageSection>
@@ -1874,6 +1881,158 @@ function ActionEditor({
   );
 }
 
+function CampaignMediaSection({
+  campaignId,
+  campaignStatus,
+  canPlan,
+}: {
+  campaignId: string;
+  campaignStatus: CampaignStatus;
+  canPlan: boolean;
+}) {
+  const { assets, isLoading, query } = useCampaignAssets(campaignId);
+  const createMutation = useCreateAssetMutation(campaignId);
+  const updateMutation = useUpdateAssetMutation(campaignId);
+  const deleteMutation = useDeleteAssetMutation(campaignId);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<typeof assets[0] | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", category: "other", tagsInput: "" });
+
+  const isReadOnly = !canPlan || campaignStatus === "completed" || campaignStatus === "archived";
+
+  async function handleUploadCreate(payload: {
+    name: string;
+    source_type: string;
+    file_url: string;
+    file_name: string;
+    file_size_bytes: number;
+    mime_type: string;
+    category: string;
+  }) {
+    await createMutation.mutateAsync(payload);
+  }
+
+  function handleLinkSubmit(payload: {
+    name: string;
+    description?: string;
+    source_type: string;
+    file_url: string;
+    category: string;
+    tags: string[];
+  }) {
+    createMutation.mutate(payload, {
+      onSuccess: () => setShowLinkDialog(false),
+    });
+  }
+
+  function handleEdit(asset: typeof assets[0]) {
+    setEditingAsset(asset);
+    setEditForm({
+      name: asset.name,
+      category: asset.category,
+      tagsInput: asset.tags.join(", "),
+    });
+  }
+
+  function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingAsset) return;
+    const tags = editForm.tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+    updateMutation.mutate(
+      { assetId: editingAsset.id, payload: { name: editForm.name, category: editForm.category, tags } },
+      { onSuccess: () => setEditingAsset(null) },
+    );
+  }
+
+  function handleDelete(asset: typeof assets[0]) {
+    deleteMutation.mutate(asset.id);
+  }
+
+  return (
+    <PageSection eyebrow="Media" title="Media Library">
+      {!isReadOnly ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+          <AssetUploadZone onCreate={handleUploadCreate} />
+          <div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setShowLinkDialog(true)}
+            >
+              Add External Link
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <MediaLibrary
+        assets={assets}
+        isLoading={isLoading}
+        campaignId={campaignId}
+        isReadOnly={isReadOnly}
+        onRefresh={() => { void query.refetch(); }}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+
+      {showLinkDialog ? (
+        <AddExternalLinkDialog
+          onSubmit={handleLinkSubmit}
+          onClose={() => setShowLinkDialog(false)}
+          isPending={createMutation.isPending}
+        />
+      ) : null}
+
+      {editingAsset ? (
+        <div className="confirm-overlay" onClick={() => setEditingAsset(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3>Edit Asset</h3>
+            <form className="form-grid" onSubmit={handleEditSubmit}>
+              <label className="field field-span-2">
+                <span>Name</span>
+                <input
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span>Category</span>
+                <select
+                  value={editForm.category}
+                  onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+                >
+                  {["logo", "brand_guidelines", "product_photo", "video_broll", "copy_caption", "hashtag_list", "mood_board", "template", "font", "color_palette", "other"].map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tags</span>
+                <input
+                  placeholder="tag1, tag2"
+                  value={editForm.tagsInput}
+                  onChange={(e) => setEditForm((f) => ({ ...f, tagsInput: e.target.value }))}
+                />
+              </label>
+              <div className="field-span-2 form-actions">
+                <button className="primary-button" type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </button>
+                <button className="secondary-button" type="button" onClick={() => setEditingAsset(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </PageSection>
+  );
+}
+
 export function CampaignDetailPage({ canPlan }: { canPlan: boolean }) {
   const { campaignId } = useParams<{ campaignId: string }>();
   const planningQuery = useCampaignPlanningViewQuery(campaignId);
@@ -1935,6 +2094,7 @@ export function CampaignDetailPage({ canPlan }: { canPlan: boolean }) {
       <CampaignInfluencersSection campaign={campaign} onRefresh={() => { void planningQuery.refetch(); }} />
       <CampaignMetricsSection campaign={campaign} />
       <CampaignTimelineSection campaign={campaign} />
+      <CampaignMediaSection campaignId={campaign.id} campaignStatus={campaign.status} canPlan={canPlan} />
 
       {canPlan && campaign.status !== "completed" && campaign.status !== "archived" ? (
         <PageSection

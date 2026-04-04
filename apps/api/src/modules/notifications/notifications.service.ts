@@ -112,7 +112,7 @@ export class NotificationsService {
   }
 
   async notifyConversationParticipants(
-    params: NotifyConversationParticipantsParams,
+    params: NotifyConversationParticipantsParams & { isReply?: boolean },
   ) {
     const participants =
       await this.prisma.conversationParticipant.findMany({
@@ -120,12 +120,33 @@ export class NotificationsService {
         select: { user_id: true, influencer_id: true },
       });
 
+    // Look up user notification preferences for user participants
+    const userIds = participants
+      .filter((p) => p.user_id && p.user_id !== params.excludeUserId)
+      .map((p) => p.user_id!);
+
+    const users = userIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, notification_preference: true },
+        })
+      : [];
+
+    const prefMap = new Map(users.map((u) => [u.id, u.notification_preference]));
+
     const notifications = participants
-      .filter(
-        (p) =>
-          (p.user_id && p.user_id !== params.excludeUserId) ||
-          p.influencer_id,
-      )
+      .filter((p) => {
+        if (p.user_id && p.user_id === params.excludeUserId) return false;
+
+        // For user participants, check preference
+        if (p.user_id) {
+          const pref = prefMap.get(p.user_id) ?? "replies_only";
+          if (pref === "none") return false;
+          if (pref === "replies_only" && !params.isReply) return false;
+        }
+
+        return true;
+      })
       .map((p) => ({
         organization_id: params.organizationId,
         recipient_id: (p.user_id ?? p.influencer_id)!,

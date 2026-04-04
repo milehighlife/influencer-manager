@@ -1,4 +1,5 @@
 export * from "./action-assignments";
+export * from "./campaign-assets";
 export * from "./actions";
 export * from "./auth";
 export * from "./campaigns";

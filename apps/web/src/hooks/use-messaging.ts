@@ -119,6 +119,14 @@ export function useConversationMessages(id?: string, page = 1, limit = 50) {
   });
 }
 
+export function useInfluencerConversations(influencerId?: string) {
+  return useQuery({
+    queryKey: ["web", "conversations", "by-influencer", influencerId],
+    queryFn: () => conversationsApi.listByInfluencer(influencerId!),
+    enabled: Boolean(influencerId),
+  });
+}
+
 export function useConversationsByEntity(
   entityType?: string,
   entityId?: string,
@@ -163,6 +171,89 @@ export function useMarkConversationReadMutation() {
       conversationsApi.markAsRead(conversationId),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useArchiveConversationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      conversationsApi.archive(conversationId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useUnarchiveConversationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      conversationsApi.unarchive(conversationId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useSnoozeConversationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, until }: { id: string; until: string }) =>
+      conversationsApi.snooze(id, until),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useBulkActionAllMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { action: "read" | "unread" | "archive"; status?: string; search?: string }) =>
+      conversationsApi.bulkActionAll(params.action, { status: params.status, search: params.search }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useBulkMarkReadMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => conversationsApi.bulkMarkRead(ids),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useBulkMarkUnreadMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => conversationsApi.bulkMarkUnread(ids),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useBulkArchiveMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      conversationsApi.bulkArchive(ids),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["web", "conversations"] }),
+  });
+}
+
+export function useBatchGroups() {
+  return useQuery({
+    queryKey: ["web", "conversations", "batch-groups"],
+    queryFn: () => conversationsApi.getBatchGroups(),
+  });
+}
+
+export function useBatchConversations(batchId?: string) {
+  return useQuery({
+    queryKey: ["web", "conversations", "batch", batchId],
+    queryFn: () => conversationsApi.getBatchConversations(batchId!),
+    enabled: Boolean(batchId),
   });
 }
 

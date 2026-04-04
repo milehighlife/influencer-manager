@@ -9,6 +9,7 @@ import { PrismaModule } from "./database/prisma.module";
 import { ActionAssignmentsModule } from "./modules/action-assignments/action-assignments.module";
 import { ActionsModule } from "./modules/actions/actions.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { CampaignAssetsModule } from "./modules/campaign-assets/campaign-assets.module";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module";
 import { ClientsModule } from "./modules/clients/clients.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
@@ -56,6 +57,7 @@ import { UsersModule } from "./modules/users/users.module";
     ClientsModule,
     CompaniesModule,
     ConversationsModule,
+    CampaignAssetsModule,
     CampaignsModule,
     MissionsModule,
     ActionsModule,

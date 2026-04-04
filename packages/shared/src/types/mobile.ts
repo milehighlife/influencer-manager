@@ -852,7 +852,9 @@ export interface NotificationCountResponse {
 }
 
 export interface BulkOutreachPayload {
-  template_id: string;
+  template_id?: string;
+  subject?: string;
+  body?: string;
   influencer_ids: string[];
   related_entity_type?: ConversationEntityType;
   related_entity_id?: string;
@@ -873,3 +875,71 @@ export const TEMPLATE_MERGE_VARIABLES = [
   "company_name",
   "due_date",
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Campaign Media Library
+// ---------------------------------------------------------------------------
+
+export const ASSET_SOURCE_TYPES = ["upload", "external_link"] as const;
+
+export const ASSET_CATEGORIES = [
+  "logo",
+  "brand_guidelines",
+  "product_photo",
+  "video_broll",
+  "copy_caption",
+  "hashtag_list",
+  "mood_board",
+  "template",
+  "font",
+  "color_palette",
+  "other",
+] as const;
+
+export type AssetSourceType = (typeof ASSET_SOURCE_TYPES)[number];
+export type AssetCategoryType = (typeof ASSET_CATEGORIES)[number];
+
+export interface CampaignAssetRecord {
+  id: string;
+  organization_id?: string;
+  campaign_id: string;
+  client_id: string;
+  company_id: string;
+  name: string;
+  description: string | null;
+  source_type: AssetSourceType;
+  file_url: string;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  thumbnail_url: string | null;
+  category: AssetCategoryType;
+  tags: string[];
+  sort_order: number;
+  uploaded_by_id: string | null;
+  uploaded_by_name?: string | null;
+  campaign_name?: string;
+  company_name?: string;
+  created_at: string;
+  updated_at: string;
+  action_ids?: string[];
+}
+
+export interface ClientAssetListParams {
+  search?: string;
+  company_id?: string;
+  campaign_id?: string;
+  category?: string;
+  source_type?: string;
+  start_date?: string;
+  end_date?: string;
+  sort_by?: string;
+  sort_order?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface ClientAssetSummary {
+  total_assets: number;
+  total_file_size: number;
+}
