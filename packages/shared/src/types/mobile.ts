@@ -728,3 +728,148 @@ export interface CampaignCascadePreview {
   actions_with_media_in_progress: number;
   actions_without_media: number;
 }
+
+// ---------------------------------------------------------------------------
+// Messaging & Outreach
+// ---------------------------------------------------------------------------
+
+export const MESSAGE_TEMPLATE_CATEGORIES = [
+  "outreach",
+  "assignment_notification",
+  "reminder",
+  "follow_up",
+  "completion",
+  "custom",
+] as const;
+
+export const CONVERSATION_ENTITY_TYPES = [
+  "campaign",
+  "mission",
+  "action",
+  "assignment",
+] as const;
+
+export const MESSAGE_SENDER_TYPES = ["user", "influencer", "system"] as const;
+
+export const NOTIFICATION_TYPES = [
+  "new_message",
+  "assignment_update",
+  "reminder",
+  "system",
+] as const;
+
+export type MessageTemplateCategory =
+  (typeof MESSAGE_TEMPLATE_CATEGORIES)[number];
+export type ConversationEntityType =
+  (typeof CONVERSATION_ENTITY_TYPES)[number];
+export type MessageSenderType = (typeof MESSAGE_SENDER_TYPES)[number];
+export type NotificationTypeValue = (typeof NOTIFICATION_TYPES)[number];
+
+export interface MessageTemplate {
+  id: string;
+  organization_id?: string;
+  name: string;
+  subject: string;
+  body: string;
+  category: MessageTemplateCategory;
+  is_default: boolean;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationListItem {
+  id: string;
+  subject: string;
+  related_entity_type: ConversationEntityType | null;
+  related_entity_id: string | null;
+  created_at: string;
+  updated_at: string;
+  last_message: {
+    body: string;
+    sender_type: MessageSenderType;
+    sender_name: string | null;
+    created_at: string;
+  } | null;
+  unread: boolean;
+  participant_count: number;
+}
+
+export interface ConversationDetail {
+  id: string;
+  subject: string;
+  related_entity_type: ConversationEntityType | null;
+  related_entity_id: string | null;
+  created_at: string;
+  updated_at: string;
+  participants: ConversationParticipantInfo[];
+}
+
+export interface ConversationParticipantInfo {
+  id: string;
+  user_id: string | null;
+  influencer_id: string | null;
+  name: string;
+  type: "user" | "influencer";
+  joined_at: string;
+  last_read_at: string | null;
+}
+
+export interface MessageRecord {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  sender_type: MessageSenderType;
+  sender_name: string | null;
+  body: string;
+  template_id: string | null;
+  sent_via_email: boolean;
+  created_at: string;
+  attachments: MessageAttachmentRecord[];
+}
+
+export interface MessageAttachmentRecord {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+}
+
+export interface NotificationRecord {
+  id: string;
+  type: NotificationTypeValue;
+  title: string;
+  body: string;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationCountResponse {
+  unread: number;
+}
+
+export interface BulkOutreachPayload {
+  template_id: string;
+  influencer_ids: string[];
+  related_entity_type?: ConversationEntityType;
+  related_entity_id?: string;
+  send_email?: boolean;
+}
+
+export interface BulkOutreachResult {
+  job_id: string;
+  total_recipients: number;
+}
+
+/** Available merge variables for message templates. */
+export const TEMPLATE_MERGE_VARIABLES = [
+  "influencer_first_name",
+  "influencer_name",
+  "campaign_name",
+  "action_title",
+  "company_name",
+  "due_date",
+] as const;

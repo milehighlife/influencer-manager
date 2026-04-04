@@ -167,6 +167,50 @@ enum AuditChangedByType {
   @@map("audit_changed_by_type")
 }
 
+enum MessageTemplateCategory {
+  outreach
+  assignment_notification
+  reminder
+  follow_up
+  completion
+  custom
+
+  @@map("message_template_category")
+}
+
+enum ConversationEntityType {
+  campaign
+  mission
+  action
+  assignment
+
+  @@map("conversation_entity_type")
+}
+
+enum MessageSenderType {
+  user
+  influencer
+  system
+
+  @@map("message_sender_type")
+}
+
+enum NotificationType {
+  new_message
+  assignment_update
+  reminder
+  system
+
+  @@map("notification_type")
+}
+
+enum NotificationRecipientType {
+  user
+  influencer
+
+  @@map("notification_recipient_type")
+}
+
 enum ImportLogStatus {
   queued
   running
@@ -204,6 +248,9 @@ model Organization {
   mission_performance_summaries MissionPerformanceSummary[]
   campaign_performance_summaries CampaignPerformanceSummary[]
   influencer_performance_summaries InfluencerPerformanceSummary[]
+  message_templates     MessageTemplate[]
+  conversations         Conversation[]
+  notifications         Notification[]
 
   @@map("organizations")
 }
@@ -224,6 +271,10 @@ model User {
   influencer_ratings InfluencerRating[] @relation("user_ratings")
   influencer_notes   InfluencerNote[] @relation("user_notes")
   submitted_deliverables Deliverable[] @relation("user_submitted_deliverables")
+  created_templates     MessageTemplate[] @relation("user_created_templates")
+  created_conversations Conversation[] @relation("user_created_conversations")
+  conversation_participations ConversationParticipant[] @relation("user_participations")
+  sent_messages         Message[] @relation("user_sent_messages")
 
   @@unique([organization_id, id])
   @@unique([organization_id, influencer_id])
@@ -395,6 +446,7 @@ model Influencer {
   influencer_ratings   InfluencerRating[]  @relation("influencer_ratings")
   influencer_notes     InfluencerNote[]    @relation("influencer_notes")
   influencer_clients   InfluencerClient[]  @relation("influencer_influencer_clients")
+  conversation_participations ConversationParticipant[] @relation("influencer_participations")
 
   @@unique([organization_id, id])
   @@index([organization_id])
@@ -736,4 +788,136 @@ model InfluencerPerformanceSummary {
   @@index([organization_id])
   @@index([influencer_id])
   @@map("influencer_performance_summaries")
+}
+
+// ---------------------------------------------------------------------------
+// Messaging & Outreach
+// ---------------------------------------------------------------------------
+
+model MessageTemplate {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String                  @db.Uuid
+  name            String
+  subject         String
+  body            String
+  category        MessageTemplateCategory @default(custom)
+  is_default      Boolean                 @default(false)
+  created_by_id   String?                 @db.Uuid
+  created_at      DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime                @updatedAt @db.Timestamptz(6)
+  organization    Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  created_by      User?                   @relation("user_created_templates", fields: [organization_id, created_by_id], references: [organization_id, id], onDelete: SetNull)
+  messages        Message[]               @relation("template_messages")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, category])
+  @@map("message_templates")
+}
+
+model Conversation {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String                  @db.Uuid
+  subject             String
+  related_entity_type ConversationEntityType?
+  related_entity_id   String?                 @db.Uuid
+  created_by_id       String?                 @db.Uuid
+  created_at          DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                @updatedAt @db.Timestamptz(6)
+  organization        Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  created_by          User?                   @relation("user_created_conversations", fields: [organization_id, created_by_id], references: [organization_id, id], onDelete: SetNull)
+  participants        ConversationParticipant[] @relation("conversation_participants")
+  messages            Message[]               @relation("conversation_messages")
+
+  @@unique([organization_id, id])
+  @@index([organization_id])
+  @@index([organization_id, related_entity_type, related_entity_id])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String       @db.Uuid
+  user_id         String?      @db.Uuid
+  influencer_id   String?      @db.Uuid
+  joined_at       DateTime     @default(now()) @db.Timestamptz(6)
+  last_read_at    DateTime?    @db.Timestamptz(6)
+  conversation    Conversation @relation("conversation_participants", fields: [conversation_id], references: [id], onDelete: Cascade)
+  user            User?        @relation("user_participations", fields: [user_id], references: [id], onDelete: Cascade)
+  influencer      Influencer?  @relation("influencer_participations", fields: [influencer_id], references: [id], onDelete: Cascade)
+
+  @@unique([conversation_id, user_id])
+  @@unique([conversation_id, influencer_id])
+  @@index([conversation_id])
+  @@index([user_id])
+  @@index([influencer_id])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String            @db.Uuid
+  sender_id       String?           @db.Uuid
+  sender_type     MessageSenderType
+  body            String
+  template_id     String?           @db.Uuid
+  sent_via_email  Boolean           @default(false)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @updatedAt @db.Timestamptz(6)
+  conversation    Conversation      @relation("conversation_messages", fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender          User?             @relation("user_sent_messages", fields: [sender_id], references: [id], onDelete: SetNull)
+  template        MessageTemplate?  @relation("template_messages", fields: [template_id], references: [id], onDelete: SetNull)
+  attachments     MessageAttachment[] @relation("message_attachments")
+
+  @@index([conversation_id])
+  @@index([conversation_id, created_at])
+  @@index([sender_id])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id      String   @db.Uuid
+  file_name       String
+  file_url        String
+  file_type       String?
+  file_size_bytes Int?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  message         Message  @relation("message_attachments", fields: [message_id], references: [id], onDelete: Cascade)
+
+  @@index([message_id])
+  @@map("message_attachments")
+}
+
+model Notification {
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String                    @db.Uuid
+  recipient_id        String                    @db.Uuid
+  recipient_type      NotificationRecipientType
+  type                NotificationType
+  title               String
+  body                String
+  related_entity_type String?
+  related_entity_id   String?                   @db.Uuid
+  read_at             DateTime?                 @db.Timestamptz(6)
+  created_at          DateTime                  @default(now()) @db.Timestamptz(6)
+  organization        Organization              @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id])
+  @@index([organization_id, recipient_id, recipient_type])
+  @@index([organization_id, recipient_id, read_at])
+  @@map("notifications")
+}
+
+model AutomatedMessageLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  assignment_id   String   @db.Uuid
+  template_type   String
+  sent_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([assignment_id, template_type])
+  @@index([organization_id])
+  @@index([assignment_id])
+  @@map("automated_message_logs")
 }

@@ -12,10 +12,13 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { CampaignsModule } from "./modules/campaigns/campaigns.module";
 import { ClientsModule } from "./modules/clients/clients.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
+import { ConversationsModule } from "./modules/conversations/conversations.module";
 import { DeliverablesModule } from "./modules/deliverables/deliverables.module";
 import { HealthModule } from "./modules/health/health.module";
 import { InfluencerNotesModule } from "./modules/influencer-notes/influencer-notes.module";
 import { InfluencerRatingsModule } from "./modules/influencer-ratings/influencer-ratings.module";
+import { MessageTemplatesModule } from "./modules/message-templates/message-templates.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { InfluencerWorkspaceModule } from "./modules/influencer-workspace/influencer-workspace.module";
 import { InfluencersModule } from "./modules/influencers/influencers.module";
 import { JobsModule } from "./jobs/jobs.module";
@@ -52,6 +55,7 @@ import { UsersModule } from "./modules/users/users.module";
     UsersModule,
     ClientsModule,
     CompaniesModule,
+    ConversationsModule,
     CampaignsModule,
     MissionsModule,
     ActionsModule,
@@ -65,6 +69,8 @@ import { UsersModule } from "./modules/users/users.module";
     JobsModule,
     InfluencerRatingsModule,
     InfluencerNotesModule,
+    MessageTemplatesModule,
+    NotificationsModule,
   ],
   providers: [
     {

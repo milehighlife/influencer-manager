@@ -8,6 +8,7 @@ import {
 } from "@influencer-manager/shared/types/mobile";
 import type { CampaignStatus } from "@influencer-manager/shared/types/mobile";
 
+import { ComposeMessageDialog } from "../components/ComposeMessageDialog";
 import { ConfirmCascadeDialog } from "../components/ConfirmCascadeDialog";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -390,6 +391,10 @@ function CampaignInfluencersSection({
 }) {
   const [removing, setRemoving] = useState<string | null>(null);
   const [teamPage, setTeamPage] = useState(1);
+  const [messagingInfluencer, setMessagingInfluencer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const teamPageSize = 20;
 
   const influencerMap = new Map<
@@ -481,6 +486,7 @@ function CampaignInfluencersSection({
                   </span>
                 ) : null}
               </th>
+              <th></th>
               {campaign.status !== "completed" && campaign.status !== "archived" ? <th></th> : null}
             </tr>
           </thead>
@@ -492,6 +498,15 @@ function CampaignInfluencersSection({
                 </td>
                 <td>
                   {inf.completed} / {inf.totalAssigned}
+                </td>
+                <td>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setMessagingInfluencer({ id: inf.id, name: inf.name })}
+                  >
+                    Message
+                  </button>
                 </td>
                 {campaign.status !== "completed" && campaign.status !== "archived" ? (
                   <td>
@@ -592,6 +607,17 @@ function CampaignInfluencersSection({
         </div>
         </>
       )}
+
+      {messagingInfluencer ? (
+        <ComposeMessageDialog
+          influencerId={messagingInfluencer.id}
+          influencerName={messagingInfluencer.name}
+          relatedEntityType="campaign"
+          relatedEntityId={campaign.id}
+          onClose={() => setMessagingInfluencer(null)}
+          onSuccess={() => setMessagingInfluencer(null)}
+        />
+      ) : null}
     </PageSection>
   );
 }

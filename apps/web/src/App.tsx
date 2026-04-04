@@ -28,6 +28,10 @@ const InfluencerListPage = lazy(() => import("./pages/InfluencerListPage").then(
 const InfluencerDetailPage = lazy(() => import("./pages/InfluencerDetailPage").then((m) => ({ default: m.InfluencerDetailPage })));
 const InfluencerCampaignDetailPage = lazy(() => import("./pages/InfluencerCampaignDetailPage").then((m) => ({ default: m.InfluencerCampaignDetailPage })));
 const InfluencerActionDetailPage = lazy(() => import("./pages/InfluencerActionDetailPage").then((m) => ({ default: m.InfluencerActionDetailPage })));
+const TemplateListPage = lazy(() => import("./pages/TemplateListPage").then((m) => ({ default: m.TemplateListPage })));
+const TemplateEditorPage = lazy(() => import("./pages/TemplateEditorPage").then((m) => ({ default: m.TemplateEditorPage })));
+const InboxPage = lazy(() => import("./pages/InboxPage").then((m) => ({ default: m.InboxPage })));
+const ConversationPage = lazy(() => import("./pages/ConversationPage").then((m) => ({ default: m.ConversationPage })));
 
 function PageFallback() {
   return <p className="muted" style={{ padding: 32 }}>Loading...</p>;
@@ -112,6 +116,19 @@ function AppRoutes() {
           <Route
             path="/influencers/:influencerId/campaigns/:campaignId/actions/:actionId"
             element={<InfluencerActionDetailPage canPlan={canPlan} />}
+          />
+          <Route
+            path="/templates"
+            element={<TemplateListPage />}
+          />
+          <Route
+            path="/templates/:templateId"
+            element={<TemplateEditorPage />}
+          />
+          <Route path="/inbox" element={<InboxPage />} />
+          <Route
+            path="/inbox/:conversationId"
+            element={<ConversationPage />}
           />
           <Route path="*" element={<Navigate to="/campaigns" replace />} />
         </Routes>

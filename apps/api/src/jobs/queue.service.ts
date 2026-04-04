@@ -5,6 +5,8 @@ import { getQueueConnection } from "../config/queue.config";
 import { PrismaService } from "../database/prisma.service";
 import { ImportLogsService } from "../modules/import-logs/import-logs.service";
 import {
+  BULK_OUTREACH_JOB,
+  BULK_OUTREACH_QUEUE,
   CAMPAIGN_AGGREGATION_JOB,
   CAMPAIGN_AGGREGATION_QUEUE,
   METRIC_SYNC_JOB,
@@ -12,6 +14,7 @@ import {
   POST_REFRESH_JOB,
   POST_REFRESH_QUEUE,
 } from "./queue.constants";
+import type { BulkOutreachJobData } from "./interfaces/bulk-outreach-job.interface";
 import type { CampaignAggregationJobData } from "./interfaces/campaign-aggregation-job.interface";
 import type { MetricSyncJobData } from "./interfaces/metric-sync-job.interface";
 import type { PostRefreshJobData } from "./interfaces/post-refresh-job.interface";
@@ -21,6 +24,7 @@ export class QueueService implements OnModuleDestroy {
   private metricSyncQueue?: Queue<MetricSyncJobData>;
   private postRefreshQueue?: Queue<PostRefreshJobData>;
   private campaignAggregationQueue?: Queue<CampaignAggregationJobData>;
+  private bulkOutreachQueue?: Queue<BulkOutreachJobData>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +56,13 @@ export class QueueService implements OnModuleDestroy {
       this.createQueue<CampaignAggregationJobData>(CAMPAIGN_AGGREGATION_QUEUE);
 
     return this.campaignAggregationQueue;
+  }
+
+  private getBulkOutreachQueue() {
+    this.bulkOutreachQueue ??=
+      this.createQueue<BulkOutreachJobData>(BULK_OUTREACH_QUEUE);
+
+    return this.bulkOutreachQueue;
   }
 
   async enqueueMetricSyncForPost(organizationId: string, postId: string) {
@@ -110,11 +121,21 @@ export class QueueService implements OnModuleDestroy {
     };
   }
 
+  async enqueueBulkOutreach(data: BulkOutreachJobData) {
+    const job = await this.getBulkOutreachQueue().add(BULK_OUTREACH_JOB, data);
+
+    return {
+      queue: BULK_OUTREACH_QUEUE,
+      jobId: String(job.id),
+    };
+  }
+
   async onModuleDestroy() {
     await Promise.all([
       this.metricSyncQueue?.close(),
       this.postRefreshQueue?.close(),
       this.campaignAggregationQueue?.close(),
+      this.bulkOutreachQueue?.close(),
     ]);
   }
 }

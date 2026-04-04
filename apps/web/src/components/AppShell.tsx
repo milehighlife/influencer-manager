@@ -7,6 +7,8 @@ import {
   useUnratedPublishedActions,
   useOverdueActions,
 } from "../hooks/use-campaign-builder";
+import { useConversationList } from "../hooks/use-messaging";
+import { NotificationBell } from "./NotificationBell";
 
 interface AppShellProps extends PropsWithChildren {
   user: AuthenticatedUser;
@@ -27,13 +29,20 @@ export function AppShell({
   const { meta: overdueMeta } = useOverdueActions(undefined, 1, 1);
   const hasActionAlerts =
     (unratedMeta?.total ?? 0) > 0 || (overdueMeta?.total ?? 0) > 0;
+  const { meta: unreadInboxMeta } = useConversationList({ unread: true, limit: 1 });
+  const unreadInboxCount = unreadInboxMeta?.total ?? 0;
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <p className="eyebrow">Agency Workspace</p>
-          <h1>Campaign Builder</h1>
+          <div className="sidebar-brand-row">
+            <div>
+              <p className="eyebrow">Agency Workspace</p>
+              <h1>Campaign Builder</h1>
+            </div>
+            <NotificationBell />
+          </div>
         </div>
         <nav className="sidebar-nav">
           <Link
@@ -60,6 +69,19 @@ export function AppShell({
           >
             Actions
             {hasActionAlerts ? <span className="nav-alert-dot" /> : null}
+          </Link>
+          <Link
+            className={location.pathname.startsWith("/inbox") ? "nav-link nav-link-active" : "nav-link"}
+            to="/inbox"
+          >
+            Inbox
+            {unreadInboxCount > 0 ? <span className="nav-alert-dot" /> : null}
+          </Link>
+          <Link
+            className={location.pathname.startsWith("/templates") ? "nav-link nav-link-active" : "nav-link"}
+            to="/templates"
+          >
+            Templates
           </Link>
         </nav>
         <div className="sidebar-user">

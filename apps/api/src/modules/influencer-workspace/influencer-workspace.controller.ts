@@ -10,13 +10,16 @@ import { CreateDeliverablePostDto } from "../posts/dto/create-deliverable-post.d
 import { QueryInfluencerAssignmentsDto } from "./dto/query-influencer-assignments.dto";
 import { QueryInfluencerPostsDto } from "./dto/query-influencer-posts.dto";
 import { QueryInfluencerStatusDigestDto } from "./dto/query-influencer-status-digest.dto";
+import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
 import { InfluencerWorkspaceService } from "./influencer-workspace.service";
+import { InfluencerMessagingService } from "./influencer-messaging.service";
 
 @Controller("influencer")
 @Roles("influencer")
 export class InfluencerWorkspaceController {
   constructor(
     private readonly influencerWorkspaceService: InfluencerWorkspaceService,
+    private readonly influencerMessagingService: InfluencerMessagingService,
   ) {}
 
   @Get("assignments")
@@ -137,6 +140,97 @@ export class InfluencerWorkspaceController {
       organizationId,
       user,
       id,
+    );
+  }
+
+  @Get("conversations")
+  listConversations(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.influencerMessagingService.listConversations(
+      organizationId,
+      user,
+      query,
+    );
+  }
+
+  @Get("conversations/:id/messages")
+  getConversationMessages(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.influencerMessagingService.getMessages(
+      organizationId,
+      user,
+      id,
+      query,
+    );
+  }
+
+  @Post("conversations/:id/messages")
+  sendConversationMessage(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+    @Body() dto: { body: string },
+  ) {
+    return this.influencerMessagingService.sendMessage(
+      organizationId,
+      user,
+      id,
+      dto.body,
+    );
+  }
+
+  @Post("conversations/:id/read")
+  markConversationRead(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.influencerMessagingService.markAsRead(
+      organizationId,
+      user,
+      id,
+    );
+  }
+
+  @Get("notifications")
+  listNotifications(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.influencerMessagingService.listNotifications(
+      organizationId,
+      user,
+      query,
+    );
+  }
+
+  @Get("notifications/unread-count")
+  getUnreadNotificationCount(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.influencerMessagingService.getUnreadCount(
+      organizationId,
+      user,
+    );
+  }
+
+  @Post("notifications/read-all")
+  markAllNotificationsRead(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.influencerMessagingService.markAllNotificationsRead(
+      organizationId,
+      user,
     );
   }
 }
