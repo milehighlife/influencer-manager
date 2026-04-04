@@ -355,6 +355,7 @@ export class InfluencerWorkspaceService {
       approved: 0,
       rejected: 0,
       completed: 0,
+      completed_by_cascade: 0,
     };
 
     for (const row of groupedCounts) {

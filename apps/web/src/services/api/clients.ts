@@ -14,16 +14,20 @@ export interface ClientListParams extends PaginationParams {
 export interface CreateClientPayload {
   name: string;
   industry?: string;
+  primary_contact_first_name?: string;
   primary_contact_name?: string;
   primary_contact_email?: string;
+  primary_contact_phone?: string;
   status?: string;
 }
 
 export interface UpdateClientPayload {
   name?: string;
   industry?: string | null;
+  primary_contact_first_name?: string | null;
   primary_contact_name?: string | null;
   primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
   status?: string;
 }
 

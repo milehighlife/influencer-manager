@@ -5,6 +5,7 @@ export * from "./campaigns";
 export * from "./client";
 export * from "./clients";
 export * from "./companies";
+export * from "./influencer-ratings";
 export * from "./influencers";
 export * from "./missions";
 export * from "./pagination";

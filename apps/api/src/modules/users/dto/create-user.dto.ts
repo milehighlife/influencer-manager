@@ -4,11 +4,13 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
 } from "class-validator";
 
 export class CreateUserDto {
   @IsString()
+  @MaxLength(255)
   full_name!: string;
 
   @IsEmail()
@@ -24,5 +26,6 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   @MinLength(8)
+  @MaxLength(128)
   password?: string;
 }

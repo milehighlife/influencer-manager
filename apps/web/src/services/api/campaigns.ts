@@ -1,5 +1,6 @@
 import type {
   Campaign,
+  CampaignCascadePreview,
   CampaignPlannerScheduleState,
   CampaignPlannerSortField,
   CampaignPlannerListItem,
@@ -16,6 +17,7 @@ export interface CampaignListParams extends PaginationParams {
   company_id?: string;
   client_id?: string;
   status?: Campaign["status"];
+  statuses?: string;
   schedule_state?: CampaignPlannerScheduleState;
   sort_by?: CampaignPlannerSortField;
   sort_direction?: SortDirection;
@@ -61,11 +63,15 @@ export const campaignsApi = {
         company_id: params.company_id,
         client_id: params.client_id,
         status: params.status,
+        statuses: params.statuses,
         schedule_state: params.schedule_state,
         sort_by: params.sort_by,
         sort_direction: params.sort_direction,
       },
     );
+  },
+  getStatusCounts() {
+    return apiClient.get<Record<string, number>>("/campaigns/status-counts");
   },
   createUnderCompany(companyId: string, payload: Omit<CreateCampaignPayload, "company_id">) {
     return apiClient.post<Campaign>(`/companies/${companyId}/campaigns`, payload);
@@ -75,5 +81,19 @@ export const campaignsApi = {
   },
   getPlanningView(campaignId: string) {
     return apiClient.get<CampaignPlanningView>(`/campaigns/${campaignId}/planning-view`);
+  },
+  getCascadePreview(campaignId: string) {
+    return apiClient.get<CampaignCascadePreview>(`/campaigns/${campaignId}/cascade-preview`);
+  },
+  cascadeComplete(campaignId: string, expectedVersion: number) {
+    return apiClient.post<{
+      campaign_id: string;
+      missions_updated: number;
+      actions_updated: number;
+      assignments_updated: number;
+      influencers_notified: string[];
+    }>(`/campaigns/${campaignId}/cascade-complete`, {
+      expected_version: expectedVersion,
+    });
   },
 };

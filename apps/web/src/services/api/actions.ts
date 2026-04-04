@@ -12,6 +12,7 @@ export interface CreateActionPayload {
   content_format: string;
   required_deliverables?: number;
   approval_required?: boolean;
+  required_platforms?: string[];
   start_window?: string;
   end_window?: string;
   status?: Action["status"];
@@ -23,6 +24,7 @@ export interface UpdateActionPayload {
   instructions?: string;
   content_format?: string;
   required_deliverables?: number;
+  required_platforms?: string[];
   approval_required?: boolean;
   start_window?: string | null;
   end_window?: string | null;

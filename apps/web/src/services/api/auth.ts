@@ -7,7 +7,7 @@ import { apiClient } from "./client";
 
 export const authApi = {
   login(email: string, password: string) {
-    return apiClient.post<LoginResponse>("/auth/login", { email, password }, false);
+    return apiClient.post<LoginResponse>("/auth/login", { email, password });
   },
   me() {
     return apiClient.get<AuthenticatedUser>("/auth/me");

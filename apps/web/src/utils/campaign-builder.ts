@@ -218,91 +218,37 @@ export function validateMissionSchedule({
     return "Mission start date cannot be later than the campaign end date.";
   }
 
-  if (normalizedStart && normalizedEnd && sequenceOrder) {
-    const siblings = siblingMissions.filter((mission) => mission.id !== missionId);
-
-    for (const sibling of siblings) {
-      const siblingStart = sibling.start_date?.slice(0, 10) ?? "";
-      const siblingEnd = sibling.end_date?.slice(0, 10) ?? "";
-
-      if (siblingStart && siblingEnd) {
-        const overlaps = normalizedStart < siblingEnd && normalizedEnd > siblingStart;
-        if (overlaps) {
-          return `Mission dates overlap with "${sibling.name}" from ${siblingStart} to ${siblingEnd}.`;
-        }
-      }
-
-      if (sibling.sequence_order < sequenceOrder && siblingEnd && normalizedStart < siblingEnd) {
-        return `Mission sequence conflicts with "${sibling.name}". Later missions cannot start before earlier missions end.`;
-      }
-
-      if (sibling.sequence_order > sequenceOrder && siblingStart && normalizedEnd > siblingStart) {
-        return `Mission sequence conflicts with "${sibling.name}". Earlier missions must finish before later missions begin.`;
-      }
-    }
-  }
-
   return null;
 }
 
-export interface ActionWindowValidationInput {
-  actionId?: string;
+/**
+ * Validates that an action's date window fits within the parent mission window.
+ * Actions are allowed to overlap with each other — no sibling comparison is done.
+ */
+export function validateActionWindow(input: {
   startWindow?: string;
   endWindow?: string;
   missionStartDate?: string | null;
   missionEndDate?: string | null;
-  siblingActions?: PlanningViewAction[];
-}
+}): string | null {
+  const start = input.startWindow?.trim() ?? "";
+  const end = input.endWindow?.trim() ?? "";
+  const mStart = input.missionStartDate?.slice(0, 10) ?? "";
+  const mEnd = input.missionEndDate?.slice(0, 10) ?? "";
 
-export function validateActionWindow({
-  actionId,
-  startWindow,
-  endWindow,
-  missionStartDate,
-  missionEndDate,
-  siblingActions = [],
-}: ActionWindowValidationInput) {
-  const normalizedStart = startWindow?.trim() ?? "";
-  const normalizedEnd = endWindow?.trim() ?? "";
-  const missionStart = missionStartDate?.slice(0, 10) ?? "";
-  const missionEnd = missionEndDate?.slice(0, 10) ?? "";
-
-  if (normalizedStart && normalizedEnd && normalizedStart > normalizedEnd) {
-    return "Action start window must be on or before the action end window.";
+  if (start && end && start > end) {
+    return "Action start must be on or before the end date.";
   }
 
-  if (missionStart && normalizedStart && normalizedStart.slice(0, 10) < missionStart) {
-    return `Action dates must stay within the parent mission window: ${missionStart} to ${missionEnd || "Not set"}.`;
+  const startDate = start.slice(0, 10);
+  const endDate = end.slice(0, 10);
+
+  if (mStart && startDate && startDate < mStart) {
+    return `Action start date is before the mission window (${mStart}).`;
   }
 
-  if (missionEnd && normalizedEnd && normalizedEnd.slice(0, 10) > missionEnd) {
-    return `Action dates must stay within the parent mission window: ${missionStart || "Not set"} to ${missionEnd}.`;
-  }
-
-  if (missionStart && normalizedEnd && normalizedEnd.slice(0, 10) < missionStart) {
-    return `Action dates must stay within the parent mission window: ${missionStart} to ${missionEnd || "Not set"}.`;
-  }
-
-  if (missionEnd && normalizedStart && normalizedStart.slice(0, 10) > missionEnd) {
-    return `Action dates must stay within the parent mission window: ${missionStart || "Not set"} to ${missionEnd}.`;
-  }
-
-  if (normalizedStart && normalizedEnd) {
-    const siblings = siblingActions.filter((action) => action.id !== actionId);
-
-    for (const sibling of siblings) {
-      const siblingStart = sibling.start_window?.slice(0, 16) ?? "";
-      const siblingEnd = sibling.end_window?.slice(0, 16) ?? "";
-
-      if (!siblingStart || !siblingEnd) {
-        continue;
-      }
-
-      const overlaps = normalizedStart < siblingEnd && normalizedEnd > siblingStart;
-      if (overlaps) {
-        return `Action window overlaps with "${sibling.title}" from ${siblingStart.replace("T", " ")} to ${siblingEnd.replace("T", " ")}.`;
-      }
-    }
+  if (mEnd && endDate && endDate > mEnd) {
+    return `Action end date is after the mission window (${mEnd}).`;
   }
 
   return null;

@@ -228,7 +228,7 @@ export class MissionsService {
     });
 
     return this.prisma.mission.update({
-      where: { id },
+      where: { id, organization_id: organizationId },
       data: {
         ...dto,
         start_date:
@@ -245,7 +245,9 @@ export class MissionsService {
 
   async remove(organizationId: string, id: string) {
     await this.findOne(organizationId, id);
-    await this.prisma.mission.delete({ where: { id } });
+    await this.prisma.mission.delete({
+      where: { id, organization_id: organizationId },
+    });
 
     return { id };
   }

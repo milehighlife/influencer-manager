@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 
 import { CurrentOrganizationId } from "../../common/decorators/current-organization-id.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -15,6 +16,7 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { UuidParamPipe } from "../../common/pipes/uuid-param.pipe";
 import type { AuthenticatedUser } from "../../common/utils/authenticated-user.interface";
 import { ActionAssignmentsService } from "./action-assignments.service";
+import { BulkCreateAssignmentsDto } from "./dto/bulk-create-assignments.dto";
 import { CreateActionAssignmentDto } from "./dto/create-action-assignment.dto";
 import { CreateActionInfluencerAssignmentDto } from "./dto/create-action-influencer-assignment.dto";
 import { QueryActionAssignmentsDto } from "./dto/query-action-assignments.dto";
@@ -26,6 +28,62 @@ export class ActionAssignmentsController {
   constructor(
     private readonly actionAssignmentsService: ActionAssignmentsService,
   ) {}
+
+  @Get("action-assignments/platform-mismatches")
+  findPlatformMismatches(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.actionAssignmentsService.findPlatformMismatches(
+      organizationId,
+      Number(limit) || 200,
+    );
+  }
+
+  @Get("action-assignments/unrated-published")
+  findUnratedPublished(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("search") search?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.actionAssignmentsService.findUnratedPublished(
+      organizationId,
+      search,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
+
+  @Get("action-assignments/reviewed")
+  findReviewed(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("search") search?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.actionAssignmentsService.findReviewed(
+      organizationId,
+      search,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
+
+  @Get("action-assignments/overdue")
+  findOverdue(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("search") search?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.actionAssignmentsService.findOverdue(
+      organizationId,
+      search,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
 
   @Get("action-assignments")
   findAll(
@@ -49,6 +107,19 @@ export class ActionAssignmentsController {
     @Param("id", UuidParamPipe) id: string,
   ) {
     return this.actionAssignmentsService.findOne(organizationId, id);
+  }
+
+  @Post("action-assignments/bulk")
+  @SkipThrottle()
+  @Roles("organization_admin", "campaign_manager")
+  bulkCreate(
+    @CurrentOrganizationId() organizationId: string,
+    @Body() dto: BulkCreateAssignmentsDto,
+  ) {
+    return this.actionAssignmentsService.bulkCreate(
+      organizationId,
+      dto.assignments,
+    );
   }
 
   @Post("action-assignments")

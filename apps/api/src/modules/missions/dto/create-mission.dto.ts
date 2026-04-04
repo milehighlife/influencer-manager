@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
 } from "class-validator";
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
 
@@ -15,10 +16,12 @@ export class CreateMissionDto {
   campaign_id!: string;
 
   @IsString()
+  @MaxLength(255)
   name!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @Type(() => Number)

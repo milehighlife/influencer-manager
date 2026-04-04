@@ -1,19 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { Client } from "@influencer-manager/shared/types/mobile";
 
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { PageSection } from "../components/PageSection";
-import { StatusBadge } from "../components/StatusBadge";
 import {
   useClientListItems,
   useCreateClientMutation,
-  useUpdateClientMutation,
-  useDeleteClientMutation,
 } from "../hooks/use-client-manager";
-import { formatDate } from "../utils/format";
-
 const CLIENT_STATUSES = ["active", "inactive", "archived"] as const;
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 12;
@@ -61,131 +55,9 @@ function buildSearchParams(state: ListSearchState) {
   return next;
 }
 
-function statusTone(status: string): "info" | "success" | "warning" | "danger" {
-  if (status === "active") return "success";
-  if (status === "archived") return "warning";
-  return "info";
-}
-
-function ClientEditForm({
-  client,
-  onClose,
-}: {
-  client: Client;
-  onClose: () => void;
-}) {
-  const updateMutation = useUpdateClientMutation(client.id);
-  const [form, setForm] = useState({
-    name: client.name,
-    industry: client.industry ?? "",
-    primaryContactName: client.primary_contact_name ?? "",
-    primaryContactEmail: client.primary_contact_email ?? "",
-    status: client.status,
-  });
-
-  return (
-    <form
-      className="compact-form form-grid"
-      onSubmit={(event) => {
-        event.preventDefault();
-        updateMutation.mutate(
-          {
-            name: form.name,
-            industry: form.industry || null,
-            primary_contact_name: form.primaryContactName || null,
-            primary_contact_email: form.primaryContactEmail || null,
-            status: form.status,
-          },
-          { onSuccess: onClose },
-        );
-      }}
-    >
-      <label className="field">
-        <span>Name</span>
-        <input
-          value={form.name}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, name: event.target.value }))
-          }
-          required
-        />
-      </label>
-      <label className="field">
-        <span>Industry</span>
-        <input
-          value={form.industry}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, industry: event.target.value }))
-          }
-        />
-      </label>
-      <label className="field">
-        <span>Contact name</span>
-        <input
-          value={form.primaryContactName}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              primaryContactName: event.target.value,
-            }))
-          }
-        />
-      </label>
-      <label className="field">
-        <span>Contact email</span>
-        <input
-          type="email"
-          value={form.primaryContactEmail}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              primaryContactEmail: event.target.value,
-            }))
-          }
-        />
-      </label>
-      <label className="field">
-        <span>Status</span>
-        <select
-          value={form.status}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, status: event.target.value }))
-          }
-        >
-          {CLIENT_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </label>
-      {updateMutation.isError ? (
-        <p className="error-copy field-span-2">{updateMutation.error.message}</p>
-      ) : null}
-      <div className="field-span-2 form-actions inline-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={onClose}
-        >
-          Cancel
-        </button>
-        <button
-          className="primary-button"
-          type="submit"
-          disabled={updateMutation.isPending}
-        >
-          {updateMutation.isPending ? "Saving..." : "Save client"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 export function ClientListPage({ canPlan }: { canPlan: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const queryState = useMemo(
     () => parseSearchParams(searchParams),
     [searchParams],
@@ -197,13 +69,14 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
     search: search || undefined,
   });
   const createMutation = useCreateClientMutation();
-  const deleteMutation = useDeleteClientMutation();
   const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     industry: "",
+    primaryContactFirstName: "",
     primaryContactName: "",
     primaryContactEmail: "",
+    primaryContactPhone: "",
     status: "active",
   });
   const hasActiveFilters = Boolean(search);
@@ -263,8 +136,10 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
                 {
                   name: form.name,
                   industry: form.industry || undefined,
+                  primary_contact_first_name: form.primaryContactFirstName || undefined,
                   primary_contact_name: form.primaryContactName || undefined,
                   primary_contact_email: form.primaryContactEmail || undefined,
+                  primary_contact_phone: form.primaryContactPhone || undefined,
                   status: form.status,
                 },
                 {
@@ -272,8 +147,10 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
                     setForm({
                       name: "",
                       industry: "",
+                      primaryContactFirstName: "",
                       primaryContactName: "",
                       primaryContactEmail: "",
+                      primaryContactPhone: "",
                       status: "active",
                     });
                     setShowCreateForm(false);
@@ -307,7 +184,19 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
               />
             </label>
             <label className="field">
-              <span>Contact name</span>
+              <span>Contact first name</span>
+              <input
+                value={form.primaryContactFirstName}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    primaryContactFirstName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Contact last name</span>
               <input
                 value={form.primaryContactName}
                 onChange={(event) =>
@@ -327,6 +216,19 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
                   setForm((current) => ({
                     ...current,
                     primaryContactEmail: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Phone</span>
+              <input
+                type="tel"
+                value={form.primaryContactPhone}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    primaryContactPhone: event.target.value,
                   }))
                 }
               />
@@ -388,60 +290,39 @@ export function ClientListPage({ canPlan }: { canPlan: boolean }) {
         ) : null}
         {!isLoading && !isError && items.length > 0 ? (
           <>
-            <div className="list-grid">
-              {items.map((item) => (
-                <div className="list-card" key={item.id}>
-                  <div className="list-card-header">
-                    <div>
-                      <h3><Link to={`/clients/${item.id}`}>{item.name}</Link></h3>
-                      {item.industry ? (
-                        <p className="muted">{item.industry}</p>
-                      ) : null}
-                    </div>
-                    <StatusBadge label={item.status} tone={statusTone(item.status)} />
-                  </div>
-                  <div className="meta-grid">
-                    {item.primary_contact_name ? (
-                      <span>Contact: {item.primary_contact_name}</span>
-                    ) : null}
-                    <span>Created: {formatDate(item.created_at)}</span>
-                  </div>
-                  {item.primary_contact_email ? (
-                    <p className="muted" style={{ margin: 0 }}>{item.primary_contact_email}</p>
-                  ) : null}
-                  {canPlan && editingClientId !== item.id ? (
-                    <div className="inline-actions">
-                      <button
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Contact Name</th>
+                  <th>Phone</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <Link to={`/clients/${item.id}`}>{item.name}</Link>
+                    </td>
+                    <td>
+                      {[item.primary_contact_first_name, item.primary_contact_name]
+                        .filter(Boolean)
+                        .join(" ") || "—"}
+                    </td>
+                    <td>{item.primary_contact_phone ?? "—"}</td>
+                    <td>
+                      <Link
                         className="secondary-button"
-                        type="button"
-                        onClick={() => setEditingClientId(item.id)}
+                        to={`/clients/${item.id}`}
                       >
                         Edit
-                      </button>
-                      <button
-                        className="secondary-button danger-button"
-                        type="button"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => {
-                          if (!window.confirm(`Delete client "${item.name}"? This cannot be undone.`)) {
-                            return;
-                          }
-                          deleteMutation.mutate(item.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ) : null}
-                  {editingClientId === item.id ? (
-                    <ClientEditForm
-                      client={item}
-                      onClose={() => setEditingClientId(null)}
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {meta ? (
               <div className="list-pagination">
                 <p className="muted">

@@ -1,4 +1,4 @@
-import { IsString } from "class-validator";
+import { IsString, MaxLength } from "class-validator";
 
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
 
@@ -10,5 +10,6 @@ export class CreateInfluencerNoteDto {
   author_user_id!: string;
 
   @IsString()
+  @MaxLength(5000)
   note_text!: string;
 }

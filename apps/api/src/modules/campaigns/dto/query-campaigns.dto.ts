@@ -26,6 +26,11 @@ export class QueryCampaignsDto extends PaginationQueryDto {
   @IsEnum(CampaignStatus)
   status?: CampaignStatus;
 
+  /** Comma-separated list of statuses for multi-status filtering. */
+  @IsOptional()
+  @IsString()
+  statuses?: string;
+
   @IsOptional()
   @IsEnum(CAMPAIGN_PLANNER_SCHEDULE_STATES)
   schedule_state?: (typeof CAMPAIGN_PLANNER_SCHEDULE_STATES)[number];

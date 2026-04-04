@@ -20,6 +20,7 @@ export interface RuntimeConfig {
   redisUsername?: string;
   redisPassword?: string;
   redisHealthcheckEnabled: boolean;
+  corsAllowedOrigins: string[];
 }
 
 const VALID_NODE_ENVS = new Set<RuntimeEnvironment>([
@@ -140,6 +141,11 @@ export function loadRuntimeConfig(
       env.REDIS_HEALTHCHECK_ENABLED,
       hasRedisConfig || parseBoolean(env.ENABLE_JOB_WORKERS, false),
     ),
+    corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
+      ? env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+      : nodeEnv === "development" || nodeEnv === "test"
+        ? ["http://localhost:5173", "http://localhost:3000"]
+        : [],
   };
 
   if (!Number.isInteger(config.redisDb) || config.redisDb < 0) {

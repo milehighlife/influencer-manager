@@ -5,7 +5,6 @@ import { useAuthStore } from "../state/auth-store";
 
 export function useBootstrapAuth() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const accessToken = useAuthStore((state) => state.accessToken);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const markHydrated = useAuthStore((state) => state.markHydrated);
   const updateUser = useAuthStore((state) => state.updateUser);
@@ -24,14 +23,6 @@ export function useBootstrapAuth() {
     let cancelled = false;
 
     const bootstrap = async () => {
-      if (!accessToken) {
-        setSessionValidated(false);
-        if (!cancelled) {
-          setIsBootstrapping(false);
-        }
-        return;
-      }
-
       try {
         const user = await authApi.me();
         if (!cancelled) {
@@ -44,6 +35,7 @@ export function useBootstrapAuth() {
           } else {
             clearSession();
           }
+          setSessionValidated(false);
         }
       } finally {
         if (!cancelled) {
@@ -57,7 +49,7 @@ export function useBootstrapAuth() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, clearSession, hasHydrated, setSessionValidated, updateUser]);
+  }, [clearSession, hasHydrated, setSessionValidated, updateUser]);
 
   return { isBootstrapping };
 }

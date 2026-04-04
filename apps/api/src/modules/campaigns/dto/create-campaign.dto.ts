@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from "class-validator";
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
@@ -15,13 +16,16 @@ export class CreateCampaignDto {
   company_id!: string;
 
   @IsString()
+  @MaxLength(255)
   name!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @IsString()
+  @MaxLength(100)
   campaign_type!: string;
 
   @IsOptional()

@@ -1,6 +1,6 @@
 interface StatusBadgeProps {
   label: string;
-  tone?: "info" | "success" | "warning" | "danger";
+  tone?: "neutral" | "info" | "primary" | "success" | "warning" | "danger";
 }
 
 export function StatusBadge({

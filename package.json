@@ -22,7 +22,8 @@
     "db:seed": "prisma db seed --schema db/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^6.0.0"
+    "@prisma/client": "^6.0.0",
+    "prop-types": "^15.8.1"
   },
   "overrides": {
     "react": "19.0.0",

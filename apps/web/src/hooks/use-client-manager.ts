@@ -8,7 +8,10 @@ import {
 import {
   campaignsApi,
   clientsApi,
+  companiesApi,
+  influencersApi,
   type CreateClientPayload,
+  type CreateCompanyPayload,
   type UpdateClientPayload,
 } from "../services/api";
 
@@ -70,6 +73,49 @@ export function useClientCampaigns(clientId?: string) {
     isLoading: campaignsQuery.isLoading,
     isError: campaignsQuery.isError,
   };
+}
+
+export function useClientCompanies(clientId?: string) {
+  const query = useQuery({
+    queryKey: ["web", "companies", "by-client", clientId],
+    queryFn: () =>
+      companiesApi.list({ client_id: clientId, page: 1, limit: 100 }),
+    enabled: Boolean(clientId),
+  });
+
+  return {
+    items: query.data?.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
+export function useClientInfluencers(clientId?: string) {
+  const query = useQuery({
+    queryKey: ["web", "influencers", "by-client", clientId],
+    queryFn: () => influencersApi.listByClientAndPlatform(clientId!),
+    enabled: Boolean(clientId),
+  });
+
+  return {
+    items: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
+export function useCreateCompanyMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateCompanyPayload) =>
+      companiesApi.create(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["web", "companies"] });
+    },
+  });
 }
 
 export function useCreateClientMutation() {

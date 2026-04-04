@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Min,
 } from "class-validator";
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
@@ -31,6 +32,36 @@ export class CreateActionAssignmentDto {
   @IsOptional()
   @IsDateString()
   completion_date?: string;
+
+  @IsOptional()
+  @IsString()
+  submission_url?: string;
+
+  @IsOptional()
+  @IsDateString()
+  published_at?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  total_views?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  total_comments?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  total_shares?: number;
+
+  @IsOptional()
+  @IsDateString()
+  metrics_updated_at?: string;
 
   @IsOptional()
   @Type(() => Number)

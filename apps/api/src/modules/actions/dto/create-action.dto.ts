@@ -12,6 +12,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
 } from "class-validator";
 import { IsLooseUuid } from "../../../common/decorators/is-loose-uuid.decorator";
 
@@ -20,6 +21,7 @@ export class CreateActionDto {
   mission_id!: string;
 
   @IsString()
+  @MaxLength(255)
   title!: string;
 
   @IsEnum(SocialPlatform)
@@ -27,6 +29,7 @@ export class CreateActionDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(5000)
   instructions?: string;
 
   @IsEnum(ContentFormat)
@@ -42,6 +45,10 @@ export class CreateActionDto {
   @Type(() => Boolean)
   @IsBoolean()
   approval_required?: boolean;
+
+  @IsOptional()
+  @IsString({ each: true })
+  required_platforms?: string[];
 
   @IsOptional()
   @IsDateString()

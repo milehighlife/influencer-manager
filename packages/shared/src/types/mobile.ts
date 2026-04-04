@@ -28,6 +28,7 @@ export const ASSIGNMENT_STATUSES = [
   "approved",
   "rejected",
   "completed",
+  "completed_by_cascade",
 ] as const;
 
 export const CREATOR_ASSIGNMENT_SORT_FIELDS = [
@@ -55,6 +56,7 @@ export const SOCIAL_PLATFORMS = [
   "instagram",
   "tiktok",
   "youtube",
+  "facebook",
   "x",
   "linkedin",
   "threads",
@@ -90,6 +92,18 @@ export const CAMPAIGN_PLANNER_SORT_FIELDS = [
   "end_date",
   "name",
   "status",
+  "client_name",
+  "company_name",
+] as const;
+
+export const INFLUENCER_SORT_FIELDS = [
+  "name",
+  "created_at",
+  "primary_platform",
+  "status",
+  "rating_average",
+  "client",
+  "company",
 ] as const;
 
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
@@ -101,6 +115,7 @@ export const CAMPAIGN_PLANNER_SCHEDULE_STATES = [
 
 export type CampaignPlannerSortField =
   (typeof CAMPAIGN_PLANNER_SORT_FIELDS)[number];
+export type InfluencerSortField = (typeof INFLUENCER_SORT_FIELDS)[number];
 export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 export type CampaignPlannerScheduleState =
   (typeof CAMPAIGN_PLANNER_SCHEDULE_STATES)[number];
@@ -139,6 +154,20 @@ export interface Company {
   client_name?: string | null;
   name: string;
   description: string | null;
+  contact_first_name: string | null;
+  contact_last_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  priority_instagram: number;
+  priority_tiktok: number;
+  priority_youtube: number;
+  priority_facebook: number;
+  priority_x: number;
+  priority_linkedin: number;
+  priority_threads: number;
+  priority_regions: Record<string, string>;
+  priorities_updated_at: string | null;
+  priorities_updated_by: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -149,8 +178,10 @@ export interface Client {
   organization_id?: string;
   name: string;
   industry: string | null;
+  primary_contact_first_name: string | null;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
+  primary_contact_phone: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -167,6 +198,7 @@ export interface Campaign {
   budget: number | null;
   status: CampaignStatus;
   campaign_type: string | null;
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -204,6 +236,8 @@ export interface Mission {
   start_date: string | null;
   end_date: string | null;
   status: MissionStatus;
+  auto_completed: boolean;
+  auto_completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -220,9 +254,61 @@ export interface Action {
   approval_required: boolean;
   start_window: string | null;
   end_window: string | null;
+  required_platforms: string[];
   status: ActionStatus;
+  auto_completed: boolean;
+  auto_completed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Returns active platform slugs by inspecting which URL fields are populated.
+ */
+export function getInfluencerPlatforms(influencer: {
+  url_instagram?: string | null;
+  url_tiktok?: string | null;
+  url_youtube?: string | null;
+  url_facebook?: string | null;
+  url_linkedin?: string | null;
+  url_x?: string | null;
+  url_threads?: string | null;
+}): string[] {
+  const map: [string, string | null | undefined][] = [
+    ["instagram", influencer.url_instagram],
+    ["tiktok", influencer.url_tiktok],
+    ["youtube", influencer.url_youtube],
+    ["facebook", influencer.url_facebook],
+    ["linkedin", influencer.url_linkedin],
+    ["x", influencer.url_x],
+    ["threads", influencer.url_threads],
+  ];
+  return map.filter(([, url]) => url != null && url !== "").map(([slug]) => slug);
+}
+
+/**
+ * Returns actions eligible for an influencer based on their active platforms.
+ * - If action.required_platforms is empty → eligible (universal action)
+ * - If action.required_platforms contains ANY of the influencer's active platforms → eligible
+ * - Otherwise → not eligible
+ */
+export function getEligibleActions<T extends { required_platforms?: string[] }>(
+  influencerPlatforms: string[],
+  actions: T[],
+): { eligible: T[]; ineligible: T[] } {
+  const eligible: T[] = [];
+  const ineligible: T[] = [];
+
+  for (const action of actions) {
+    const required = action.required_platforms ?? [];
+    if (required.length === 0 || required.some((p) => influencerPlatforms.includes(p))) {
+      eligible.push(action);
+    } else {
+      ineligible.push(action);
+    }
+  }
+
+  return { eligible, ineligible };
 }
 
 export interface Influencer {
@@ -233,8 +319,23 @@ export interface Influencer {
   primary_platform: SocialPlatform;
   email: string | null;
   location: string | null;
+  mailing_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  url_instagram: string | null;
+  url_tiktok: string | null;
+  url_facebook: string | null;
+  url_youtube: string | null;
+  url_linkedin: string | null;
+  url_x: string | null;
+  url_threads: string | null;
   audience_description: string | null;
   niche_tags: string[];
+  clients?: string[];
+  companies?: string[];
+  rating_average?: number | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -246,9 +347,16 @@ export interface ActionAssignment {
   action_id: string;
   influencer_id: string;
   assignment_status: AssignmentStatus;
+  cascade_reason: string | null;
   assigned_at: string | null;
   due_date: string | null;
   completion_date: string | null;
+  submission_url: string | null;
+  published_at: string | null;
+  total_views: number;
+  total_comments: number;
+  total_shares: number;
+  metrics_updated_at: string | null;
   deliverable_count_expected: number;
   deliverable_count_submitted: number;
   created_at: string;
@@ -391,6 +499,7 @@ export interface ActionAssignmentsResponse {
 
 export interface InfluencerAssignmentsResponse {
   influencer: Influencer;
+  campaign_action_counts?: Record<string, number>;
   assignments: Array<
     ActionAssignment & {
       action: Pick<
@@ -405,7 +514,9 @@ export interface InfluencerAssignmentsResponse {
             Campaign,
             "id" | "company_id" | "name" | "campaign_type" | "status"
           > & {
-            company: Pick<Company, "id" | "client_id" | "name" | "status">;
+            company: Pick<Company, "id" | "client_id" | "name" | "status"> & {
+              client: Pick<Client, "id" | "name"> | null;
+            };
           };
         };
       };
@@ -607,4 +718,13 @@ export interface InfluencerWorkspacePostPerformanceResponse {
 export interface InfluencerLinkPostResponse
   extends CreateDeliverablePostResponse {
   metric_sync_enqueued: boolean;
+}
+
+export interface CampaignCascadePreview {
+  missions_to_complete: number;
+  actions_to_complete: number;
+  assignments_to_close: number;
+  influencers_to_notify: number;
+  actions_with_media_in_progress: number;
+  actions_without_media: number;
 }

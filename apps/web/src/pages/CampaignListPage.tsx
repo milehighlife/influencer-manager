@@ -12,6 +12,7 @@ import {
   getLookupHelperMessage,
   mergeLookupOptions,
   useCampaignListItems,
+  useCampaignStatusCounts,
   useCreateCampaignMutation,
   useCompanyLookupQuery,
   useSelectedCompanyQuery,
@@ -19,15 +20,68 @@ import {
 import { validateCampaignSchedule } from "../utils/campaign-builder";
 import { formatDate } from "../utils/format";
 
+import type {
+  CampaignPlannerSortField,
+  SortDirection as SortDir,
+} from "@influencer-manager/shared/types/mobile";
+
+const CAMPAIGN_SORT_MAP: Record<string, CampaignPlannerSortField> = {
+  campaign: "name",
+  client: "client_name",
+  company: "company_name",
+  status: "status",
+};
+
+function CampaignSortableHeader({
+  label,
+  column,
+  activeColumn,
+  direction,
+  onSort,
+}: {
+  label: string;
+  column: string;
+  activeColumn: string;
+  direction: SortDir;
+  onSort: (column: string) => void;
+}) {
+  const active = activeColumn === column;
+  return (
+    <th className="sortable-th" onClick={() => onSort(column)}>
+      {label}
+      {active ? (
+        <span className="sort-arrow sort-active">
+          {direction === "asc" ? " \u25B2" : " \u25BC"}
+        </span>
+      ) : null}
+    </th>
+  );
+}
+
+function statusTone(status: string): "neutral" | "info" | "primary" | "success" | "warning" | "danger" {
+  if (status === "draft") return "neutral";
+  if (status === "planned") return "primary";
+  if (status === "active") return "success";
+  if (status === "paused") return "danger";
+  if (status === "completed") return "info";
+  if (status === "archived") return "warning";
+  return "neutral";
+}
+
 const DEFAULT_PAGE = 1;
-const DEFAULT_LIMIT = 12;
-const DEFAULT_SORT_BY = "updated_at" as const;
-const DEFAULT_SORT_DIRECTION = "desc" as const;
+const DEFAULT_LIMIT = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+
+const FILTER_STATUSES = ["draft", "active", "completed", "archived"] as const;
+const DEFAULT_STATUS_FILTER = "active";
 
 interface PlannerListSearchState {
   page: number;
   limit: number;
   search: string;
+  sortBy: string;
+  sortDirection: SortDir;
+  statusFilters: string[];
 }
 
 function parsePositiveInt(value: string | null, fallback: number) {
@@ -43,11 +97,20 @@ function parsePositiveInt(value: string | null, fallback: number) {
   return parsed;
 }
 
+function parseStatusFilters(raw: string | null): string[] {
+  if (raw === null) return [DEFAULT_STATUS_FILTER];
+  if (raw === "") return [];
+  return raw.split(",").filter((s) => s);
+}
+
 function parsePlannerListSearchParams(searchParams: URLSearchParams): PlannerListSearchState {
   return {
     page: parsePositiveInt(searchParams.get("page"), DEFAULT_PAGE),
     limit: parsePositiveInt(searchParams.get("limit"), DEFAULT_LIMIT),
     search: searchParams.get("search") ?? "",
+    sortBy: searchParams.get("sortBy") ?? "campaign",
+    sortDirection: (searchParams.get("sortDir") === "desc" ? "desc" : "asc") as SortDir,
+    statusFilters: parseStatusFilters(searchParams.get("status")),
   };
 }
 
@@ -63,6 +126,20 @@ function buildPlannerListSearchParams(state: PlannerListSearchState) {
   if (state.limit !== DEFAULT_LIMIT) {
     next.set("limit", String(state.limit));
   }
+  if (state.sortBy && state.sortBy !== "campaign") {
+    next.set("sortBy", state.sortBy);
+  }
+  if (state.sortDirection !== "asc") {
+    next.set("sortDir", state.sortDirection);
+  }
+
+  // Persist status filters — only omit when it's the default (just "active")
+  const isDefault =
+    state.statusFilters.length === 1 &&
+    state.statusFilters[0] === DEFAULT_STATUS_FILTER;
+  if (!isDefault) {
+    next.set("status", state.statusFilters.join(","));
+  }
 
   return next;
 }
@@ -71,19 +148,36 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [createCompanyLookupSearch, setCreateCompanyLookupSearch] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const createClientId = searchParams.get("clientId") || undefined;
+  const [showCreateForm, setShowCreateForm] = useState(
+    searchParams.get("create") === "1",
+  );
   const plannerQueryState = useMemo(
     () => parsePlannerListSearchParams(searchParams),
     [searchParams],
   );
-  const { page, limit, search } = plannerQueryState;
+  const { page, limit, search, sortBy, sortDirection, statusFilters } =
+    plannerQueryState;
+  const apiSortBy = CAMPAIGN_SORT_MAP[sortBy] ?? "name";
+  const statusCountsQuery = useCampaignStatusCounts();
+  const statusCounts = statusCountsQuery.data ?? {};
   const { items, meta, isLoading, isError, campaignsQuery } = useCampaignListItems({
     page,
     limit,
     search: search || undefined,
-    sortBy: DEFAULT_SORT_BY,
-    sortDirection: DEFAULT_SORT_DIRECTION,
+    statuses: statusFilters.length > 0 ? statusFilters.join(",") : undefined,
+    sortBy: apiSortBy,
+    sortDirection,
   });
+
+  function toggleStatusFilter(status: string) {
+    updatePlannerQueryState((current) => {
+      const next = current.statusFilters.includes(status)
+        ? current.statusFilters.filter((s) => s !== status)
+        : [...current.statusFilters, status];
+      return { ...current, statusFilters: next, page: DEFAULT_PAGE };
+    });
+  }
   const createCampaignMutation = useCreateCampaignMutation();
   const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -96,7 +190,7 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
     endDate: "",
     budget: "",
   });
-  const createCompaniesQuery = useCompanyLookupQuery(createCompanyLookupSearch);
+  const createCompaniesQuery = useCompanyLookupQuery(createCompanyLookupSearch, createClientId);
   const selectedCreateCompanyQuery = useSelectedCompanyQuery(form.companyId || undefined);
   const createScheduleValidationError = validateCampaignSchedule({
     startDate: form.startDate,
@@ -115,12 +209,26 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
       ),
     [createCompaniesQuery.data?.data, selectedCreateCompanyQuery.data],
   );
-  const hasActiveQueryFilters = Boolean(search);
-  const createCompanyLookupHelper = getLookupHelperMessage({
-    searchTerm: createCompanyLookupSearch,
-    subject: "companies",
-    count: createCompaniesQuery.data?.data.length ?? 0,
-  });
+  function handleCampaignSort(column: string) {
+    updatePlannerQueryState((current) => ({
+      ...current,
+      page: DEFAULT_PAGE,
+      sortBy: column,
+      sortDirection:
+        current.sortBy === column && current.sortDirection === "asc"
+          ? "desc"
+          : "asc",
+    }));
+  }
+  const hasActiveQueryFilters = Boolean(search) || statusFilters.length > 0;
+  const noFiltersSelected = statusFilters.length === 0;
+  const createCompanyLookupHelper = createClientId
+    ? `Showing ${createCompaniesQuery.data?.data.length ?? 0} companies for this client.`
+    : getLookupHelperMessage({
+        searchTerm: createCompanyLookupSearch,
+        subject: "companies",
+        count: createCompaniesQuery.data?.data.length ?? 0,
+      });
 
   function updatePlannerQueryState(
     updater:
@@ -339,8 +447,32 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
       ) : null}
 
       <PageSection eyebrow="List" title="Campaigns">
-        {isLoading ? <p className="muted">Loading campaigns...</p> : null}
-        {isError ? (
+        <div className="status-filter-bar">
+          {FILTER_STATUSES.map((status) => {
+            const isOn = statusFilters.includes(status);
+            const count = statusCounts[status] ?? 0;
+            return (
+              <button
+                key={status}
+                type="button"
+                className={`status-filter-chip ${isOn ? "status-filter-chip-active" : ""} status-filter-chip-${status}`}
+                onClick={() => toggleStatusFilter(status)}
+              >
+                {status}
+                <span className="status-filter-count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {noFiltersSelected ? (
+          <EmptyState
+            title="No status filters selected"
+            message="Toggle at least one status filter above to view campaigns."
+          />
+        ) : null}
+        {!noFiltersSelected && isLoading ? <p className="muted">Loading campaigns...</p> : null}
+        {!noFiltersSelected && isError ? (
           <ErrorState
             message="Campaigns could not be loaded."
             onRetry={() => {
@@ -348,7 +480,7 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
             }}
           />
         ) : null}
-        {!isLoading && !isError && items.length === 0 ? (
+        {!noFiltersSelected && !isLoading && !isError && items.length === 0 ? (
           <EmptyState
             title={
               hasActiveQueryFilters
@@ -362,43 +494,35 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
             }
           />
         ) : null}
-        {!isLoading && !isError && items.length > 0 ? (
+        {!noFiltersSelected && !isLoading && !isError && items.length > 0 ? (
           <>
-            <div className="list-grid">
-              {items.map((item) => (
-                <Link className="list-card" key={item.id} to={`/campaigns/${item.id}`}>
-                  <div className="list-card-header">
-                    <div>
-                      <h3>{item.name}</h3>
-                      <p className="muted">
-                        {item.company.name}
-                        {item.company.client_name ? ` · ${item.company.client_name}` : ""}
-                      </p>
-                    </div>
-                    <StatusBadge
-                      label={item.status}
-                      tone={item.status === "active" ? "success" : "info"}
-                    />
-                  </div>
-                  <div className="meta-grid">
-                    <span>Start: {formatDate(item.start_date)}</span>
-                    <span>End: {formatDate(item.end_date)}</span>
-                    <span>Missions: {item.mission_count}</span>
-                    <span>
-                      Scheduled: {item.scheduled_mission_count}/{item.mission_count}
-                    </span>
-                  </div>
-                  {item.partial_mission_count > 0 || item.unscheduled_mission_count > 0 ? (
-                    <p className="muted">
-                      {item.partial_mission_count > 0
-                        ? `${item.partial_mission_count} partial`
-                        : "0 partial"}{" "}
-                      · {item.unscheduled_mission_count} unscheduled
-                    </p>
-                  ) : null}
-                </Link>
-              ))}
-            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <CampaignSortableHeader label="Campaign" column="campaign" activeColumn={sortBy} direction={sortDirection} onSort={handleCampaignSort} />
+                  <CampaignSortableHeader label="Client" column="client" activeColumn={sortBy} direction={sortDirection} onSort={handleCampaignSort} />
+                  <CampaignSortableHeader label="Company" column="company" activeColumn={sortBy} direction={sortDirection} onSort={handleCampaignSort} />
+                  <CampaignSortableHeader label="Status" column="status" activeColumn={sortBy} direction={sortDirection} onSort={handleCampaignSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <Link to={`/campaigns/${item.id}`}>{item.name}</Link>
+                    </td>
+                    <td>{item.company.client_name ?? "—"}</td>
+                    <td>{item.company.name}</td>
+                    <td>
+                      <StatusBadge
+                        label={item.status}
+                        tone={statusTone(item.status)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {meta ? (
               <div className="list-pagination">
                 <p className="muted">
@@ -434,6 +558,24 @@ export function CampaignListPage({ canPlan }: { canPlan: boolean }) {
                   >
                     Next
                   </button>
+                </div>
+                <div className="page-size-options">
+                  <span className="muted">Show:</span>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <button
+                      key={size}
+                      className={`page-size-button ${limit === size ? "page-size-active" : ""}`}
+                      type="button"
+                      onClick={() =>
+                        updatePlannerQueryState({
+                          limit: size,
+                          page: DEFAULT_PAGE,
+                        })
+                      }
+                    >
+                      {size}
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : null}

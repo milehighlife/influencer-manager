@@ -77,15 +77,17 @@ export class CompaniesService {
   }
 
   async findOne(organizationId: string, id: string) {
-    const company = await this.prisma.company.findFirst({
+    const result = await this.prisma.company.findFirst({
       where: { id, organization_id: organizationId },
+      include: { client: { select: { name: true } } },
     });
 
-    if (!company) {
+    if (!result) {
       throw new NotFoundException("Company not found.");
     }
 
-    return company;
+    const { client, ...company } = result;
+    return { ...company, client_name: client?.name ?? null };
   }
 
   async update(organizationId: string, id: string, dto: UpdateCompanyDto) {
@@ -96,14 +98,16 @@ export class CompaniesService {
     }
 
     return this.prisma.company.update({
-      where: { id },
+      where: { id, organization_id: organizationId },
       data: dto,
     });
   }
 
   async remove(organizationId: string, id: string) {
     await this.findOne(organizationId, id);
-    await this.prisma.company.delete({ where: { id } });
+    await this.prisma.company.delete({
+      where: { id, organization_id: organizationId },
+    });
 
     return { id };
   }

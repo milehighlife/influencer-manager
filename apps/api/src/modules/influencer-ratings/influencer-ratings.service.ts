@@ -69,6 +69,16 @@ export class InfluencerRatingsService {
       organization_id: organizationId,
       ...(query.campaign_id ? { campaign_id: query.campaign_id } : {}),
       ...(query.influencer_id ? { influencer_id: query.influencer_id } : {}),
+      ...(query.action_assignment_id
+        ? { action_assignment_id: query.action_assignment_id }
+        : {}),
+      // Exclude ratings for auto-completed actions that had no media submitted
+      NOT: {
+        action_assignment: {
+          assignment_status: "completed_by_cascade",
+          deliverable_count_submitted: 0,
+        },
+      },
     };
 
     const [data, total] = await this.prisma.$transaction([
@@ -77,6 +87,11 @@ export class InfluencerRatingsService {
         skip,
         take,
         orderBy: { created_at: "desc" },
+        include: {
+          rater_user: {
+            select: { id: true, full_name: true, email: true },
+          },
+        },
       }),
       this.prisma.influencerRating.count({ where }),
     ]);

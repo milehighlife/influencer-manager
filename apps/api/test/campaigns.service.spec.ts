@@ -57,7 +57,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     const result = await service.findPlannerList("org-1", { page: 1, limit: 20 });
 
     expect(prisma.$transaction).toHaveBeenCalled();
@@ -176,7 +176,7 @@ describe("CampaignsService", () => {
       },
     };
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     const result = await service.getPlanningView("org-1", "campaign-1");
 
     expect(prisma.campaign.findFirst).toHaveBeenCalled();
@@ -211,7 +211,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     await service.findPlannerList("org-1", {
       page: 2,
       limit: 10,
@@ -278,7 +278,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     await service.findPlannerList("org-1", {
       page: 1,
       limit: 20,
@@ -350,7 +350,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     await service.findPlannerList("org-1", {
       page: 1,
       limit: 20,
@@ -394,7 +394,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     await service.findPlannerList("org-1", {
       page: 1,
       limit: 20,
@@ -488,7 +488,7 @@ describe("CampaignsService", () => {
         Promise.all(args[0] as Array<Promise<unknown>>) as Promise<[unknown, number]>,
     );
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
     await service.findPlannerList("org-1", {
       page: 1,
       limit: 20,
@@ -544,7 +544,7 @@ describe("CampaignsService", () => {
       },
     };
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
 
     await expect(
       service.create("org-1", {
@@ -582,7 +582,7 @@ describe("CampaignsService", () => {
       },
     };
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
 
     await expect(
       service.update("org-1", "campaign-1", {
@@ -612,7 +612,7 @@ describe("CampaignsService", () => {
       },
     };
 
-    const service = new CampaignsService(prisma as never);
+    const service = new CampaignsService(prisma as never, { logUserEvent: jest.fn() } as never);
 
     await expect(
       service.update("org-1", "campaign-1", {

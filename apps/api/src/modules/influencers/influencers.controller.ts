@@ -29,6 +29,27 @@ export class InfluencersController {
     return this.influencersService.findAll(organizationId, query);
   }
 
+  @Get("influencers/by-company")
+  findByCompany(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("company_id") companyId: string,
+  ) {
+    return this.influencersService.findByCompany(organizationId, companyId);
+  }
+
+  @Get("influencers/by-client-platform")
+  findByClientAndPlatform(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("client_id") clientId: string,
+    @Query("platform") platform?: string,
+  ) {
+    return this.influencersService.findByClientAndPlatform(
+      organizationId,
+      clientId,
+      platform,
+    );
+  }
+
   @Get("influencers/:id/assignments")
   findAssignments(
     @CurrentOrganizationId() organizationId: string,
@@ -71,5 +92,33 @@ export class InfluencersController {
     @Param("id", UuidParamPipe) id: string,
   ) {
     return this.influencersService.remove(organizationId, id);
+  }
+
+  @Get("influencers/:id/clients")
+  findClients(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.influencersService.findClients(organizationId, id);
+  }
+
+  @Post("influencers/:id/clients/:clientId")
+  @Roles("organization_admin", "campaign_manager")
+  addClient(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+    @Param("clientId", UuidParamPipe) clientId: string,
+  ) {
+    return this.influencersService.addClient(organizationId, id, clientId);
+  }
+
+  @Delete("influencers/:id/clients/:clientId")
+  @Roles("organization_admin", "campaign_manager")
+  removeClient(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+    @Param("clientId", UuidParamPipe) clientId: string,
+  ) {
+    return this.influencersService.removeClient(organizationId, id, clientId);
   }
 }

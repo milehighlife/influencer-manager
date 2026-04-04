@@ -73,14 +73,16 @@ export class ClientsService {
     await this.findOne(organizationId, id);
 
     return this.prisma.client.update({
-      where: { id },
+      where: { id, organization_id: organizationId },
       data: dto,
     });
   }
 
   async remove(organizationId: string, id: string) {
     await this.findOne(organizationId, id);
-    await this.prisma.client.delete({ where: { id } });
+    await this.prisma.client.delete({
+      where: { id, organization_id: organizationId },
+    });
 
     return { id };
   }

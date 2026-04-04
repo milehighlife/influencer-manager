@@ -11,4 +11,8 @@ export class QueryInfluencerRatingsDto extends PaginationQueryDto {
   @IsOptional()
   @IsLooseUuid()
   influencer_id?: string;
+
+  @IsOptional()
+  @IsLooseUuid()
+  action_assignment_id?: string;
 }

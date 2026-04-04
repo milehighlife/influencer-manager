@@ -1,21 +1,20 @@
 import type { AuthenticatedUser } from "@influencer-manager/shared/types/mobile";
 import { create } from "zustand";
 
-const STORAGE_KEY = "influencer-manager-web-session";
+const STORAGE_KEY = "influencer-manager-web-user";
 
 interface AuthState {
-  accessToken: string | null;
   user: AuthenticatedUser | null;
   hasHydrated: boolean;
   sessionValidated: boolean;
-  setSession: (session: { accessToken: string; user: AuthenticatedUser }) => void;
+  setSession: (session: { user: AuthenticatedUser }) => void;
   updateUser: (user: AuthenticatedUser) => void;
   clearSession: () => void;
   markHydrated: () => void;
   setSessionValidated: (validated: boolean) => void;
 }
 
-function readSession() {
+function readUser(): AuthenticatedUser | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -26,49 +25,43 @@ function readSession() {
   }
 
   try {
-    return JSON.parse(raw) as { accessToken: string; user: AuthenticatedUser | null };
+    return JSON.parse(raw) as AuthenticatedUser;
   } catch {
     return null;
   }
 }
 
-function writeSession(session: { accessToken: string | null; user: AuthenticatedUser | null }) {
+function writeUser(user: AuthenticatedUser | null) {
   if (typeof window === "undefined") {
     return;
   }
 
-  if (!session.accessToken) {
+  if (!user) {
     window.localStorage.removeItem(STORAGE_KEY);
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 }
 
-const initialSession = readSession();
+const initialUser = readUser();
 
 export const useAuthStore = create<AuthState>((set) => ({
-  accessToken: initialSession?.accessToken ?? null,
-  user: initialSession?.user ?? null,
+  user: initialUser,
   hasHydrated: false,
   sessionValidated: false,
-  setSession: ({ accessToken, user }) => {
-    writeSession({ accessToken, user });
-    set({ accessToken, user, sessionValidated: true });
+  setSession: ({ user }) => {
+    writeUser(user);
+    set({ user, sessionValidated: true });
   },
   updateUser: (user) => {
-    const accessToken = getSessionToken();
-    writeSession({ accessToken, user });
+    writeUser(user);
     set({ user, sessionValidated: true });
   },
   clearSession: () => {
-    writeSession({ accessToken: null, user: null });
-    set({ accessToken: null, user: null, sessionValidated: false });
+    writeUser(null);
+    set({ user: null, sessionValidated: false });
   },
   markHydrated: () => set({ hasHydrated: true }),
   setSessionValidated: (validated) => set({ sessionValidated: validated }),
 }));
-
-export function getSessionToken() {
-  return useAuthStore.getState().accessToken;
-}

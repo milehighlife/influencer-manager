@@ -94,23 +94,29 @@ export class AnalyticsAggregationService {
       }),
     ]);
 
+    await Promise.all(
+      postIds.map((post) => this.refreshPostSummary(organizationId, post.id)),
+    );
+
+    await Promise.all(
+      actionIds.map((action) =>
+        this.refreshActionSummary(organizationId, action.id),
+      ),
+    );
+
+    await Promise.all(
+      missionIds.map((mission) =>
+        this.refreshMissionSummary(organizationId, mission.id),
+      ),
+    );
+
     await this.refreshCampaignSummary(organizationId, campaignId);
 
-    for (const mission of missionIds) {
-      await this.refreshMissionSummary(organizationId, mission.id);
-    }
-
-    for (const action of actionIds) {
-      await this.refreshActionSummary(organizationId, action.id);
-    }
-
-    for (const post of postIds) {
-      await this.refreshPostSummary(organizationId, post.id);
-    }
-
-    for (const influencer of influencerIds) {
-      await this.refreshInfluencerSummary(organizationId, influencer.influencer_id);
-    }
+    await Promise.all(
+      influencerIds.map((influencer) =>
+        this.refreshInfluencerSummary(organizationId, influencer.influencer_id),
+      ),
+    );
   }
 
   async refreshPostSummary(organizationId: string, postId: string) {

@@ -12,6 +12,8 @@ import type {
   SortDirection,
 } from "@influencer-manager/shared/types/mobile";
 
+import type { CampaignCascadePreview } from "@influencer-manager/shared/types/mobile";
+
 import {
   actionAssignmentsApi,
   actionsApi,
@@ -72,7 +74,7 @@ export function useCompanyLookupQuery(searchTerm: string, clientId?: string) {
         search: normalizedSearch || undefined,
         client_id: clientId || undefined,
       }),
-    enabled: normalizedSearch.length > 0,
+    enabled: normalizedSearch.length > 0 || Boolean(clientId),
   });
 }
 
@@ -123,6 +125,7 @@ export interface PlannerListQueryState {
   companyId?: string;
   clientId?: string;
   status?: Campaign["status"];
+  statuses?: string;
   scheduleState?: CampaignPlannerScheduleState;
   sortBy: CampaignPlannerSortField;
   sortDirection: SortDirection;
@@ -156,6 +159,7 @@ export function useCampaignListItems(options: PlannerListQueryState) {
         company_id: options.companyId || undefined,
         client_id: options.clientId || undefined,
         status: options.status,
+        statuses: options.statuses,
         schedule_state: options.scheduleState,
         sort_by: options.sortBy,
         sort_direction: options.sortDirection,
@@ -171,6 +175,76 @@ export function useCampaignListItems(options: PlannerListQueryState) {
     isLoading: campaignsQuery.isLoading,
     isError: campaignsQuery.isError,
   };
+}
+
+export function useUnratedPublishedActions(
+  search?: string,
+  page = 1,
+  limit = 10,
+) {
+  const query = useQuery({
+    queryKey: ["web", "action-assignments", "unrated-published", search, page, limit],
+    queryFn: () =>
+      actionAssignmentsApi.getUnratedPublished({ search, page, limit }),
+    placeholderData: keepPreviousData,
+  });
+
+  return {
+    items: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
+export function useReviewedActions(
+  search?: string,
+  page = 1,
+  limit = 10,
+) {
+  const query = useQuery({
+    queryKey: ["web", "action-assignments", "reviewed", search, page, limit],
+    queryFn: () =>
+      actionAssignmentsApi.getReviewed({ search, page, limit }),
+    placeholderData: keepPreviousData,
+  });
+
+  return {
+    items: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
+export function useOverdueActions(
+  search?: string,
+  page = 1,
+  limit = 10,
+) {
+  const query = useQuery({
+    queryKey: ["web", "action-assignments", "overdue", search, page, limit],
+    queryFn: () =>
+      actionAssignmentsApi.getOverdue({ search, page, limit }),
+    placeholderData: keepPreviousData,
+  });
+
+  return {
+    items: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
+export function useCampaignStatusCounts() {
+  return useQuery<Record<string, number>>({
+    queryKey: ["web", "campaigns", "status-counts"],
+    queryFn: () => campaignsApi.getStatusCounts(),
+  });
 }
 
 export function useCreateCampaignMutation() {
@@ -364,4 +438,29 @@ export function useFilteredInfluencers(searchTerm: string) {
     ...influencersQuery,
     filteredInfluencers: influencers,
   };
+}
+
+export function useCascadePreviewQuery(campaignId: string, enabled: boolean) {
+  return useQuery<CampaignCascadePreview>({
+    queryKey: ["web", "campaigns", campaignId, "cascade-preview"],
+    queryFn: () => campaignsApi.getCascadePreview(campaignId),
+    enabled,
+  });
+}
+
+export function useCascadeCompleteMutation(campaignId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (expectedVersion: number) =>
+      campaignsApi.cascadeComplete(campaignId, expectedVersion),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["web", "campaigns"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["web", "campaigns", campaignId],
+        }),
+      ]);
+    },
+  });
 }

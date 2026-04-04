@@ -8,16 +8,13 @@ import { useAuthStore } from "../state/auth-store";
 export function LoginPage() {
   const user = useAuthStore((state) => state.user);
   const setSession = useAuthStore((state) => state.setSession);
-  const [email, setEmail] = useState("avery.chen@northstar.example");
-  const [password, setPassword] = useState("AdminPass123!");
+  const [email, setEmail] = useState(import.meta.env.DEV ? "avery.chen@northstar.example" : "");
+  const [password, setPassword] = useState(import.meta.env.DEV ? "AdminPass123!" : "");
 
   const loginMutation = useMutation({
     mutationFn: () => authApi.login(email, password),
     onSuccess: (response) => {
-      setSession({
-        accessToken: response.access_token,
-        user: response.user,
-      });
+      setSession({ user: response.user });
     },
   });
 

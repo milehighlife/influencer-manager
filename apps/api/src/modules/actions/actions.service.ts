@@ -83,40 +83,6 @@ export class ActionsService {
       );
     }
 
-    if (!params.startWindow || !params.endWindow) {
-      return;
-    }
-
-    const siblingActions = await this.prisma.action.findMany({
-      where: {
-        organization_id: params.organizationId,
-        mission_id: params.missionId,
-        ...(params.actionId ? { NOT: { id: params.actionId } } : {}),
-      },
-      orderBy: [{ start_window: "asc" }, { created_at: "asc" }],
-    });
-
-    for (const sibling of siblingActions) {
-      if (!sibling.start_window || !sibling.end_window) {
-        continue;
-      }
-
-      const overlaps =
-        params.startWindow < sibling.end_window &&
-        params.endWindow > sibling.start_window;
-
-      if (overlaps) {
-        throw new BadRequestException(
-          `Action window overlaps with "${sibling.title}" from ${sibling.start_window
-            .toISOString()
-            .slice(0, 16)
-            .replace("T", " ")} to ${sibling.end_window
-            .toISOString()
-            .slice(0, 16)
-            .replace("T", " ")}.`,
-        );
-      }
-    }
   }
 
   async create(organizationId: string, dto: CreateActionDto) {

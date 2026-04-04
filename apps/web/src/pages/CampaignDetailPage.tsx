@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import {
   ACTION_STATUSES,
   ASSIGNMENT_STATUSES,
@@ -8,6 +8,7 @@ import {
 } from "@influencer-manager/shared/types/mobile";
 import type { CampaignStatus } from "@influencer-manager/shared/types/mobile";
 
+import { ConfirmCascadeDialog } from "../components/ConfirmCascadeDialog";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { PageSection } from "../components/PageSection";
@@ -15,6 +16,8 @@ import { StatusBadge } from "../components/StatusBadge";
 import {
   getLookupHelperMessage,
   useCampaignPlanningViewQuery,
+  useCascadeCompleteMutation,
+  useCascadePreviewQuery,
   useCreateActionMutation,
   useCreateAssignmentMutation,
   useCreateMissionMutation,
@@ -45,7 +48,7 @@ const CONTENT_FORMAT_OPTIONS = [
   "in_feed_post",
   "carousel",
   "reel",
-  "story_set",
+  "story",
   "short_video",
   "long_form_video",
   "live_stream",
@@ -62,7 +65,13 @@ function CampaignEditor({
   canPlan: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showCascadeDialog, setShowCascadeDialog] = useState(false);
   const mutation = useUpdateCampaignMutation(campaign.id);
+  const cascadeMutation = useCascadeCompleteMutation(campaign.id);
+  const cascadePreview = useCascadePreviewQuery(
+    campaign.id,
+    showCascadeDialog,
+  );
   const statusOptions = getCampaignStatusOptions(campaign.status);
   const [form, setForm] = useState({
     name: campaign.name,
@@ -76,10 +85,75 @@ function CampaignEditor({
     missions: campaign.missions,
   });
 
+  const saveNonCascade = () => {
+    mutation.mutate(
+      {
+        name: form.name,
+        start_date: toNullableScheduleValue(form.start_date),
+        end_date: toNullableScheduleValue(form.end_date),
+        status: form.status,
+      },
+      {
+        onSuccess: () => {
+          setShowCascadeDialog(false);
+          setIsEditing(false);
+        },
+      },
+    );
+  };
+
+  const handleFormSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    // If changing to completed and coming from a non-completed status, show cascade dialog
+    if (form.status === "completed" && campaign.status !== "completed") {
+      setShowCascadeDialog(true);
+      return;
+    }
+
+    saveNonCascade();
+  };
+
+  const handleCascadeConfirm = () => {
+    const preview = cascadePreview.data;
+    if (!preview) return;
+
+    // If all counts are zero, skip cascade and just update status normally
+    const totalChanges =
+      preview.missions_to_complete +
+      preview.actions_to_complete +
+      preview.assignments_to_close;
+
+    if (totalChanges === 0) {
+      saveNonCascade();
+      return;
+    }
+
+    cascadeMutation.mutate(campaign.version, {
+      onSuccess: () => {
+        setShowCascadeDialog(false);
+        setIsEditing(false);
+      },
+    });
+  };
+
+  const handleCascadeCancel = () => {
+    setShowCascadeDialog(false);
+    cascadeMutation.reset();
+  };
+
   return (
     <PageSection
       eyebrow="Campaign detail"
-      title={campaign.name}
+      title={
+        <span className="mission-header">
+          {campaign.name}
+          <StatusBadge
+            label={campaign.status}
+            tone={campaign.status === "active" ? "success" : "info"}
+          />
+        </span>
+      }
       actions={
         canPlan ? (
           <button
@@ -98,13 +172,6 @@ function CampaignEditor({
           <strong>{campaign.company.name}</strong>
         </div>
         <div>
-          <p className="muted">Status</p>
-          <StatusBadge
-            label={campaign.status}
-            tone={campaign.status === "active" ? "success" : "info"}
-          />
-        </div>
-        <div>
           <p className="muted">Dates</p>
           <strong>
             {formatDate(campaign.start_date)} to {formatDate(campaign.end_date)}
@@ -120,22 +187,7 @@ function CampaignEditor({
       {isEditing ? (
         <form
           className="form-grid compact-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            mutation.mutate(
-              {
-                name: form.name,
-                start_date: toNullableScheduleValue(form.start_date),
-                end_date: toNullableScheduleValue(form.end_date),
-                status: form.status,
-              },
-              {
-                onSuccess: () => {
-                  setIsEditing(false);
-                },
-              },
-            );
-          }}
+          onSubmit={handleFormSubmit}
         >
           <label className="field">
             <span>Campaign name</span>
@@ -232,6 +284,48 @@ function CampaignEditor({
           </div>
         </form>
       ) : null}
+
+      {showCascadeDialog && cascadePreview.data ? (
+        <ConfirmCascadeDialog
+          campaignName={campaign.name}
+          preview={cascadePreview.data}
+          isExecuting={cascadeMutation.isPending || mutation.isPending}
+          error={
+            cascadeMutation.isError
+              ? "Something went wrong. No changes were made. Please try again."
+              : mutation.isError
+                ? mutation.error.message
+                : null
+          }
+          onCancel={handleCascadeCancel}
+          onConfirm={handleCascadeConfirm}
+        />
+      ) : null}
+
+      {showCascadeDialog && cascadePreview.isLoading ? (
+        <div className="confirm-overlay">
+          <div className="confirm-dialog cascade-dialog">
+            <h3>Loading cascade preview...</h3>
+            <p>Analyzing campaign impact...</p>
+          </div>
+        </div>
+      ) : null}
+
+      {showCascadeDialog && cascadePreview.isError ? (
+        <div className="confirm-overlay" onClick={handleCascadeCancel}>
+          <div className="confirm-dialog cascade-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Error</h3>
+            <p className="error-copy">
+              Failed to load cascade preview. Please try again.
+            </p>
+            <div className="confirm-dialog-actions">
+              <button className="secondary-button" type="button" onClick={handleCascadeCancel}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageSection>
   );
 }
@@ -285,6 +379,286 @@ function TimelineRangeCopy({
   return <>Unscheduled</>;
 }
 
+function CampaignInfluencersSection({
+  campaign,
+  onRefresh,
+}: {
+  campaign: NonNullable<
+    ReturnType<typeof useCampaignPlanningViewQuery>["data"]
+  >;
+  onRefresh: () => void;
+}) {
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [teamPage, setTeamPage] = useState(1);
+  const teamPageSize = 20;
+
+  const influencerMap = new Map<
+    string,
+    { id: string; name: string; email: string | null; completed: number; totalAssigned: number; assignmentIds: string[] }
+  >();
+
+  for (const mission of campaign.missions) {
+    for (const action of mission.actions) {
+      for (const assignment of action.assignments) {
+        const existing = influencerMap.get(assignment.influencer_id);
+        const isCompleted =
+          assignment.assignment_status === "submitted" ||
+          assignment.assignment_status === "approved" ||
+          assignment.assignment_status === "completed";
+        if (existing) {
+          existing.totalAssigned++;
+          existing.assignmentIds.push(assignment.id);
+          if (isCompleted) existing.completed++;
+        } else {
+          influencerMap.set(assignment.influencer_id, {
+            id: assignment.influencer_id,
+            name: assignment.influencer_summary.name,
+            email: assignment.influencer_summary.email,
+            totalAssigned: 1,
+            completed: isCompleted ? 1 : 0,
+            assignmentIds: [assignment.id],
+          });
+        }
+      }
+    }
+  }
+
+  const influencers = Array.from(influencerMap.values());
+  const [teamSort, setTeamSort] = useState<{ column: "name" | "status"; direction: "asc" | "desc" }>({ column: "name", direction: "asc" });
+
+  const sortedInfluencers = [...influencers].sort((a, b) => {
+    const dir = teamSort.direction === "asc" ? 1 : -1;
+    if (teamSort.column === "name") {
+      return a.name.localeCompare(b.name) * dir;
+    }
+    return (a.completed / (a.totalAssigned || 1) - b.completed / (b.totalAssigned || 1)) * dir;
+  });
+
+  function handleTeamSort(column: "name" | "status") {
+    setTeamSort((prev) =>
+      prev.column === column
+        ? { column, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { column, direction: "asc" },
+    );
+    setTeamPage(1);
+  }
+
+  return (
+    <PageSection
+      eyebrow="Team"
+      title="Influencers"
+      actions={
+        campaign.status !== "completed" && campaign.status !== "archived" ? (
+          <Link className="primary-button" to={`/campaigns/${campaign.id}/assign`}>
+            Assign Influencer
+          </Link>
+        ) : undefined
+      }
+    >
+      {influencers.length === 0 ? (
+        <EmptyState
+          title="No influencers"
+          message="No influencers have been assigned to this campaign."
+        />
+      ) : (
+        <>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="sortable-th" onClick={() => handleTeamSort("name")}>
+                Influencer Name
+                {teamSort.column === "name" ? (
+                  <span className="sort-arrow sort-active">
+                    {teamSort.direction === "asc" ? " \u25B2" : " \u25BC"}
+                  </span>
+                ) : null}
+              </th>
+              <th className="sortable-th" onClick={() => handleTeamSort("status")}>
+                Status
+                {teamSort.column === "status" ? (
+                  <span className="sort-arrow sort-active">
+                    {teamSort.direction === "asc" ? " \u25B2" : " \u25BC"}
+                  </span>
+                ) : null}
+              </th>
+              {campaign.status !== "completed" && campaign.status !== "archived" ? <th></th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedInfluencers.slice((teamPage - 1) * teamPageSize, teamPage * teamPageSize).map((inf) => (
+              <tr key={inf.id}>
+                <td>
+                  <Link to={`/influencers/${inf.id}`}>{inf.name}</Link>
+                </td>
+                <td>
+                  {inf.completed} / {inf.totalAssigned}
+                </td>
+                {campaign.status !== "completed" && campaign.status !== "archived" ? (
+                  <td>
+                    <button
+                      className="secondary-button danger-button"
+                      type="button"
+                      disabled={removing === inf.id}
+                      onClick={async () => {
+                        if (!window.confirm(`Remove ${inf.name} from this campaign? This will delete all ${inf.totalAssigned} action assignment${inf.totalAssigned === 1 ? "" : "s"}.`)) return;
+                        setRemoving(inf.id);
+                        try {
+                          const { actionAssignmentsApi } = await import("../services/api");
+                          await Promise.all(inf.assignmentIds.map((id) => actionAssignmentsApi.remove(id)));
+                          onRefresh();
+                        } finally {
+                          setRemoving(null);
+                        }
+                      }}
+                    >
+                      {removing === inf.id ? "Removing..." : "Remove"}
+                    </button>
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {sortedInfluencers.length > teamPageSize ? (
+          <div className="list-pagination">
+            <p className="muted">
+              Page {teamPage} of {Math.ceil(sortedInfluencers.length / teamPageSize)} · {sortedInfluencers.length} influencers
+            </p>
+            <div className="inline-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setTeamPage((p) => Math.max(1, p - 1))}
+                disabled={teamPage <= 1}
+              >
+                Previous
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setTeamPage((p) => p < Math.ceil(sortedInfluencers.length / teamPageSize) ? p + 1 : p)}
+                disabled={teamPage >= Math.ceil(sortedInfluencers.length / teamPageSize)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <button
+            className="primary-link"
+            type="button"
+            style={{ background: "none", border: "none", cursor: "pointer", font: "inherit" }}
+            onClick={async () => {
+              const { influencersApi } = await import("../services/api");
+              const rows: string[][] = [["First Name", "Last Name", "Mailing Address", "City", "State", "Zip", "Email"]];
+              for (const inf of sortedInfluencers) {
+                try {
+                  const full = await influencersApi.get(inf.id);
+                  const spaceIdx = full.name.indexOf(" ");
+                  const firstName = spaceIdx === -1 ? full.name : full.name.slice(0, spaceIdx);
+                  const lastName = spaceIdx === -1 ? "" : full.name.slice(spaceIdx + 1);
+                  rows.push([
+                    firstName,
+                    lastName,
+                    full.mailing_address ?? "",
+                    full.city ?? "",
+                    full.state ?? "",
+                    full.zip ?? "",
+                    full.email ?? "",
+                  ]);
+                } catch {
+                  const spaceIdx = inf.name.indexOf(" ");
+                  rows.push([
+                    spaceIdx === -1 ? inf.name : inf.name.slice(0, spaceIdx),
+                    spaceIdx === -1 ? "" : inf.name.slice(spaceIdx + 1),
+                    "", "", "", "",
+                    inf.email ?? "",
+                  ]);
+                }
+              }
+              const csv = rows.map(r => r.map(v => '"' + v.replace(/"/g, '""') + '"').join(",")).join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "campaign-influencers.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Download CSV
+          </button>
+        </div>
+        </>
+      )}
+    </PageSection>
+  );
+}
+
+function CampaignMetricsSection({
+  campaign,
+}: {
+  campaign: NonNullable<
+    ReturnType<typeof useCampaignPlanningViewQuery>["data"]
+  >;
+}) {
+  let totalViews = 0;
+  let totalComments = 0;
+  let totalShares = 0;
+  let totalAssigned = 0;
+  let totalSubmitted = 0;
+
+  for (const mission of campaign.missions) {
+    for (const action of mission.actions) {
+      for (const assignment of action.assignments) {
+        totalAssigned++;
+        totalViews += assignment.total_views ?? 0;
+        totalComments += assignment.total_comments ?? 0;
+        totalShares += assignment.total_shares ?? 0;
+        if (
+          assignment.assignment_status === "submitted" ||
+          assignment.assignment_status === "approved" ||
+          assignment.assignment_status === "completed"
+        ) {
+          totalSubmitted++;
+        }
+      }
+    }
+  }
+
+  return (
+    <PageSection
+      eyebrow="Performance"
+      title="Campaign metrics"
+      actions={
+        <Link className="primary-button" to={`/campaigns/${campaign.id}/metrics`}>
+          Update Metrics
+        </Link>
+      }
+    >
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Actions</th>
+            <th>Views</th>
+            <th>Comments</th>
+            <th>Shares</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>{totalSubmitted} / {totalAssigned}</strong></td>
+            <td><strong>{totalViews.toLocaleString()}</strong></td>
+            <td><strong>{totalComments.toLocaleString()}</strong></td>
+            <td><strong>{totalShares.toLocaleString()}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </PageSection>
+  );
+}
+
 function CampaignTimelineSection({
   campaign,
 }: {
@@ -292,6 +666,25 @@ function CampaignTimelineSection({
     ReturnType<typeof useCampaignPlanningViewQuery>["data"]
   >;
 }) {
+  if (campaign.status === "completed" || campaign.status === "archived") {
+    return (
+      <PageSection eyebrow="Timeline" title="Schedule overview">
+        <div className="campaign-complete-notice">
+          <p>This campaign is complete.</p>
+          <p className="muted">
+            {campaign.missions.length}{" "}
+            {campaign.missions.length === 1 ? "mission" : "missions"} and{" "}
+            {campaign.missions.reduce((t, m) => t + m.actions.length, 0)}{" "}
+            {campaign.missions.reduce((t, m) => t + m.actions.length, 0) === 1
+              ? "action"
+              : "actions"}{" "}
+            were finalized when this campaign was marked as completed.
+          </p>
+        </div>
+      </PageSection>
+    );
+  }
+
   const timeline = buildCampaignTimeline(campaign);
   const hasBars =
     timeline.frameStart &&
@@ -610,6 +1003,7 @@ function MissionForm({
 
 function MissionEditor({
   campaignId,
+  campaignStatus,
   mission,
   canPlan,
   isOpen,
@@ -626,6 +1020,7 @@ function MissionEditor({
   siblingMissions,
 }: {
   campaignId: string;
+  campaignStatus: string;
   mission: NonNullable<
     ReturnType<typeof useCampaignPlanningViewQuery>["data"]
   >["missions"][number];
@@ -645,8 +1040,10 @@ function MissionEditor({
     ReturnType<typeof useCampaignPlanningViewQuery>["data"]
   >["missions"];
 }) {
+  const isCampaignClosed = campaignStatus === "completed" || campaignStatus === "archived";
   const [isEditing, setIsEditing] = useState(false);
   const [showActionForm, setShowActionForm] = useState(false);
+  const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
   const updateMutation = useUpdateMissionMutation(campaignId, mission.id);
   const deleteMutation = useDeleteMissionMutation(campaignId);
   const [form, setForm] = useState({
@@ -670,90 +1067,106 @@ function MissionEditor({
       <div className="section-header">
         <div>
           <p className="eyebrow">Mission {mission.sequence_order}</p>
-          <h3>{mission.name}</h3>
-          <p className="muted">
-            {mission.description || "No mission description yet."}
-          </p>
-      <p className="meta-line">
-        {mission.actions.length} visible action
-        {mission.actions.length === 1 ? "" : "s"} of {totalActionCount} total •{" "}
-        {totalAssignmentCount} assignment{totalAssignmentCount === 1 ? "" : "s"}
-      </p>
-      <p className="meta-line">
-        Mission schedule: {formatDate(mission.start_date)} to {formatDate(mission.end_date)}
-      </p>
-        </div>
-        <div className="stack-right">
-          <StatusBadge
-            label={mission.status}
-            tone={mission.status === "active" ? "success" : "info"}
-          />
-          <div className="inline-actions">
-            {canPlan ? (
-              <>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={onMoveUp}
-                  disabled={!canMoveUp || isReordering}
-                >
-                  Move Up
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={onMoveDown}
-                  disabled={!canMoveDown || isReordering}
-                >
-                  Move Down
-                </button>
-              </>
-            ) : null}
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={onToggleOpen}
-            >
-              {isOpen ? "Collapse" : "Expand"}
-            </button>
-            {canPlan ? (
-              <>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setIsEditing((value) => !value)}
-                >
-                  {isEditing ? "Close edit" : "Edit"}
-                </button>
-                <button
-                  className="secondary-button danger-button"
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Delete this mission? Its actions and assignments will be removed as part of the mission cleanup.",
-                      )
-                    ) {
-                      deleteMutation.mutate(mission.id);
-                    }
-                  }}
-                  disabled={deleteMutation.isPending}
-                >
-                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
-                </button>
-              </>
-            ) : null}
+          <div className="mission-header">
+            <h3 style={{ margin: 0 }}>{mission.name}</h3>
+            <StatusBadge
+              label={mission.status}
+              tone={mission.status === "active" ? "success" : "info"}
+            />
           </div>
         </div>
+        {canPlan ? (
+          <div className="inline-actions">
+            {isCampaignClosed ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={onToggleOpen}
+              >
+                {isOpen ? "Close" : "View"}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setIsEditing((v) => !v)}
+                >
+                  {isEditing ? "Close" : "Edit"}
+                </button>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => {
+                    setShowActionForm((v) => !v);
+                    if (!isOpen) onToggleOpen();
+                  }}
+                >
+                  {showActionForm ? "Close" : "Create Action"}
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
+      {mission.description ? (
+        <p className="muted">{mission.description}</p>
+      ) : null}
       <p className="meta-line">
-        Window: {formatDate(mission.start_date)} to {formatDate(mission.end_date)}
+        {formatDate(mission.start_date)} – {formatDate(mission.end_date)}
       </p>
+      {mission.actions.length > 0 ? (
+        <table className="data-table" style={{ marginTop: 8 }}>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Platform</th>
+              <th>Format</th>
+              <th>Influencers</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {mission.actions.map((action) => {
+              const isActionEditing = isOpen && expandedActionId === action.id;
+              return (
+                <React.Fragment key={action.id}>
+                  <tr>
+                    <td>
+                      <Link to={`/campaigns/${campaignId}/actions/${action.id}`}>
+                        {action.title}
+                      </Link>
+                    </td>
+                    <td>{formatPlatform(action.platform)}</td>
+                    <td>{action.content_format ? formatPlatform(action.content_format) : "—"}</td>
+                    <td>{action.assignments.length}</td>
+                    <td>
+                      <StatusBadge
+                        label={action.status}
+                        tone={action.status === "active" ? "success" : "info"}
+                      />
+                    </td>
+                    <td>
+                      <Link
+                        className="secondary-button"
+                        to={`/campaigns/${campaignId}/actions/${action.id}`}
+                      >
+                        {isCampaignClosed ? "View" : "Edit"}
+                      </Link>
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : null}
       {deleteMutation.isError ? (
         <p className="error-copy">{deleteMutation.error.message}</p>
       ) : null}
 
-      {isEditing ? (
+      {isEditing && !isCampaignClosed ? (
         <form
           className="form-grid compact-form"
           onSubmit={(event) => {
@@ -867,55 +1280,13 @@ function MissionEditor({
         </form>
       ) : null}
 
-      {isOpen ? (
-        <>
-          {canPlan ? (
-            <div className="builder-toolbar">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setShowActionForm((value) => !value)}
-              >
-                {showActionForm ? "Close action form" : "Add Action"}
-              </button>
-            </div>
-          ) : null}
-
-          {showActionForm ? (
-            <ActionForm
-              campaignId={campaignId}
-              missionId={mission.id}
-              missionStartDate={mission.start_date}
-              missionEndDate={mission.end_date}
-              siblingActions={mission.actions}
-            />
-          ) : null}
-
-          {mission.actions.length === 0 ? (
-            <EmptyState
-              title={totalActionCount === 0 ? "No actions yet" : "No actions match the current filters"}
-              message={
-                totalActionCount === 0
-                  ? "Create the first action to define deliverable expectations and begin staffing creators."
-                  : "Try another filter combination to reveal actions in this mission."
-              }
-            />
-          ) : (
-            <div className="action-stack">
-              {mission.actions.map((action) => (
-                <ActionEditor
-                  key={action.id}
-                  campaignId={campaignId}
-                  action={action}
-                  canPlan={canPlan}
-                  missionStartDate={mission.start_date}
-                  missionEndDate={mission.end_date}
-                  siblingActions={mission.actions}
-                />
-              ))}
-            </div>
-          )}
-        </>
+      {showActionForm && !isCampaignClosed ? (
+        <ActionForm
+          campaignId={campaignId}
+          missionId={mission.id}
+          missionStartDate={mission.start_date}
+          missionEndDate={mission.end_date}
+        />
       ) : null}
     </div>
   );
@@ -926,15 +1297,11 @@ function ActionForm({
   missionId,
   missionStartDate,
   missionEndDate,
-  siblingActions,
 }: {
   campaignId: string;
   missionId: string;
   missionStartDate: string | null;
   missionEndDate: string | null;
-  siblingActions: NonNullable<
-    ReturnType<typeof useCampaignPlanningViewQuery>["data"]
-  >["missions"][number]["actions"];
 }) {
   const mutation = useCreateActionMutation(campaignId, missionId);
   const [form, setForm] = useState({
@@ -953,7 +1320,6 @@ function ActionForm({
     endWindow: form.end_window,
     missionStartDate,
     missionEndDate,
-    siblingActions,
   });
 
   return (
@@ -967,6 +1333,7 @@ function ActionForm({
           instructions: form.instructions || undefined,
           content_format: form.content_format,
           required_deliverables: Number(form.required_deliverables),
+          required_platforms: [form.platform],
           approval_required: form.approval_required === "true",
           start_window: form.start_window || undefined,
           end_window: form.end_window || undefined,
@@ -1221,7 +1588,6 @@ function ActionEditor({
   canPlan,
   missionStartDate,
   missionEndDate,
-  siblingActions,
 }: {
   campaignId: string;
   action: NonNullable<
@@ -1230,9 +1596,6 @@ function ActionEditor({
   canPlan: boolean;
   missionStartDate: string | null;
   missionEndDate: string | null;
-  siblingActions: NonNullable<
-    ReturnType<typeof useCampaignPlanningViewQuery>["data"]
-  >["missions"][number]["actions"];
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showAssigner, setShowAssigner] = useState(false);
@@ -1250,67 +1613,38 @@ function ActionEditor({
     instructions: action.instructions ?? "",
   });
   const scheduleValidationError = validateActionWindow({
-    actionId: action.id,
     startWindow: form.start_window,
     endWindow: form.end_window,
     missionStartDate,
     missionEndDate,
-    siblingActions,
   });
 
   return (
     <div className="action-card">
       <div className="section-header">
         <div>
-          <h4>{action.title}</h4>
+          <div className="mission-header">
+            <h4 style={{ margin: 0 }}>{action.title}</h4>
+            <StatusBadge
+              label={action.status}
+              tone={action.status === "active" ? "success" : "info"}
+            />
+          </div>
           <p className="muted">
             {formatPlatform(action.platform)} • {action.content_format ?? "content"} •{" "}
             {action.required_deliverables} deliverable
             {action.required_deliverables === 1 ? "" : "s"}
           </p>
-          <p className="meta-line">
-            {action.assignments.length} assigned influencer
-            {action.assignments.length === 1 ? "" : "s"}
-          </p>
         </div>
         <div className="stack-right">
-          <StatusBadge
-            label={action.status}
-            tone={action.status === "active" ? "success" : "info"}
-          />
           {canPlan ? (
-            <div className="inline-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setShowAssigner((value) => !value)}
-              >
-                {showAssigner ? "Close assigner" : "Assign Influencer"}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setIsEditing((value) => !value)}
-              >
-                {isEditing ? "Close edit" : "Edit"}
-              </button>
-              <button
-                className="secondary-button danger-button"
-                type="button"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Delete this action? Its influencer assignments will be removed as part of the action cleanup.",
-                    )
-                  ) {
-                    deleteMutation.mutate(action.id);
-                  }
-                }}
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setIsEditing((value) => !value)}
+            >
+              {isEditing ? "Close" : "Edit"}
+            </button>
           ) : null}
         </div>
       </div>
@@ -1483,72 +1817,33 @@ function ActionEditor({
           {updateMutation.isError ? (
             <p className="error-copy field-span-2">{updateMutation.error.message}</p>
           ) : null}
-          <div className="field-span-2 form-actions">
+          <div className="field-span-2 form-actions inline-actions">
             <button
-              className="secondary-button"
+              className="primary-button"
               type="submit"
               disabled={updateMutation.isPending || Boolean(scheduleValidationError)}
             >
               {updateMutation.isPending ? "Saving..." : "Save action"}
             </button>
+            <button
+              className="secondary-button danger-button"
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Delete this action? Its influencer assignments will be removed.",
+                  )
+                ) {
+                  deleteMutation.mutate(action.id);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete action"}
+            </button>
           </div>
         </form>
       ) : null}
-
-      {showAssigner ? (
-        <AssignmentForm campaignId={campaignId} actionId={action.id} />
-      ) : null}
-
-      {action.assignments.length === 0 ? (
-        <EmptyState
-          title="No influencers assigned"
-          message="Assign an influencer to connect execution work to this action."
-        />
-      ) : (
-        <div className="assignment-list">
-          {action.assignments.map((assignment) => (
-            <div className="assignment-row" key={assignment.id}>
-              <div>
-                <strong>{assignment.influencer_summary.name}</strong>
-                <p className="muted">
-                  {assignment.influencer_summary.primary_platform} • Due{" "}
-                  {formatDate(assignment.due_date)}
-                </p>
-              </div>
-              <div className="inline-actions">
-                <StatusBadge
-                  label={assignment.assignment_status}
-                  tone={
-                    assignment.assignment_status === "completed"
-                      ? "success"
-                      : assignment.assignment_status === "rejected"
-                        ? "danger"
-                        : "info"
-                  }
-                />
-                {canPlan ? (
-                  <button
-                    className="secondary-button danger-button"
-                    type="button"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Remove this influencer assignment from the action?",
-                        )
-                      ) {
-                        deleteAssignmentMutation.mutate(assignment.id);
-                      }
-                    }}
-                    disabled={deleteAssignmentMutation.isPending}
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1606,10 +1901,16 @@ export function CampaignDetailPage({ canPlan }: { canPlan: boolean }) {
 
   return (
     <div className="page-stack">
+      <Link className="breadcrumb-link" to="/campaigns">
+        &lt; {campaign.name}
+      </Link>
+
       <CampaignEditor campaign={campaign} canPlan={canPlan} />
+      <CampaignInfluencersSection campaign={campaign} onRefresh={() => { void planningQuery.refetch(); }} />
+      <CampaignMetricsSection campaign={campaign} />
       <CampaignTimelineSection campaign={campaign} />
 
-      {canPlan ? (
+      {canPlan && campaign.status !== "completed" && campaign.status !== "archived" ? (
         <PageSection
           eyebrow="Mission creation"
           title="Build the next stage"
@@ -1750,6 +2051,7 @@ export function CampaignDetailPage({ canPlan }: { canPlan: boolean }) {
                 <MissionEditor
                   key={mission.id}
                   campaignId={campaign.id}
+                  campaignStatus={campaign.status}
                   mission={mission}
                   canPlan={canPlan}
                   isOpen={expandedMissionId === mission.id}

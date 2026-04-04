@@ -10,9 +10,12 @@ import {
 } from "@nestjs/common";
 
 import { CurrentOrganizationId } from "../../common/decorators/current-organization-id.decorator";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
+import type { AuthenticatedUser } from "../../common/utils/authenticated-user.interface";
 import { UuidParamPipe } from "../../common/pipes/uuid-param.pipe";
 import { CampaignsService } from "./campaigns.service";
+import { CompleteCampaignCascadeDto } from "./dto/complete-campaign-cascade.dto";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { CreateCompanyCampaignDto } from "./dto/create-company-campaign.dto";
 import { QueryCampaignsDto } from "./dto/query-campaigns.dto";
@@ -52,6 +55,18 @@ export class CampaignsController {
     return this.campaignsService.findAll(organizationId, query);
   }
 
+  @Get("campaigns/status-counts")
+  @Roles(
+    "organization_admin",
+    "campaign_manager",
+    "campaign_editor",
+    "analyst",
+    "viewer",
+  )
+  getStatusCounts(@CurrentOrganizationId() organizationId: string) {
+    return this.campaignsService.getStatusCounts(organizationId);
+  }
+
   @Get("campaigns/:id/planning-view")
   findPlanningView(
     @CurrentOrganizationId() organizationId: string,
@@ -88,6 +103,31 @@ export class CampaignsController {
       organizationId,
       companyId,
       dto,
+    );
+  }
+
+  @Get("campaigns/:id/cascade-preview")
+  @Roles("organization_admin", "campaign_manager")
+  getCascadePreview(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.campaignsService.getCascadePreview(organizationId, id);
+  }
+
+  @Post("campaigns/:id/cascade-complete")
+  @Roles("organization_admin", "campaign_manager")
+  cascadeComplete(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CompleteCampaignCascadeDto,
+  ) {
+    return this.campaignsService.completeCampaignWithCascade(
+      organizationId,
+      id,
+      user.id,
+      dto.expected_version,
     );
   }
 

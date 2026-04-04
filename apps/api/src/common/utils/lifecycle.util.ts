@@ -30,6 +30,7 @@ const lifecycleTransitions = {
     rejected: ["in_progress"],
     approved: ["completed"],
     completed: [],
+    completed_by_cascade: [],
   },
   deliverable: {
     pending: ["submitted"],

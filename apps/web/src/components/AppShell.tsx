@@ -3,6 +3,10 @@ import type { PropsWithChildren } from "react";
 import type { AuthenticatedUser } from "@influencer-manager/shared/types/mobile";
 
 import { useAuthStore } from "../state/auth-store";
+import {
+  useUnratedPublishedActions,
+  useOverdueActions,
+} from "../hooks/use-campaign-builder";
 
 interface AppShellProps extends PropsWithChildren {
   user: AuthenticatedUser;
@@ -19,6 +23,10 @@ export function AppShell({
   const clearSession = useAuthStore((state) => state.clearSession);
   const navigate = useNavigate();
   const location = useLocation();
+  const { meta: unratedMeta } = useUnratedPublishedActions(undefined, 1, 1);
+  const { meta: overdueMeta } = useOverdueActions(undefined, 1, 1);
+  const hasActionAlerts =
+    (unratedMeta?.total ?? 0) > 0 || (overdueMeta?.total ?? 0) > 0;
 
   return (
     <div className="app-shell">
@@ -41,10 +49,17 @@ export function AppShell({
             Clients
           </Link>
           <Link
-            className={location.pathname.startsWith("/companies") ? "nav-link nav-link-active" : "nav-link"}
-            to="/companies"
+            className={location.pathname.startsWith("/influencers") ? "nav-link nav-link-active" : "nav-link"}
+            to="/influencers"
           >
-            Companies
+            Influencers
+          </Link>
+          <Link
+            className={location.pathname.startsWith("/actions") ? "nav-link nav-link-active" : "nav-link"}
+            to="/actions"
+          >
+            Actions
+            {hasActionAlerts ? <span className="nav-alert-dot" /> : null}
           </Link>
         </nav>
         <div className="sidebar-user">

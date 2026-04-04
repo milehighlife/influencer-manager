@@ -1,7 +1,5 @@
 import type { ApiErrorResponse } from "@influencer-manager/shared/types/mobile";
 
-import { getSessionToken } from "../../state/auth-store";
-
 export class ApiError extends Error {
   status: number;
   details: ApiErrorResponse | undefined;
@@ -59,15 +57,14 @@ class ApiClient {
       body?: unknown;
     } = {},
   ) {
-    const token = options.auth === false ? null : getSessionToken();
     const response = await fetch(
       `${this.baseUrl}${path}${buildQueryString(options.query)}`,
       {
         method: options.method ?? "GET",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body:
           options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -95,8 +92,8 @@ class ApiClient {
     return this.request<T>(path, { query });
   }
 
-  post<T>(path: string, body?: unknown, auth = true) {
-    return this.request<T>(path, { method: "POST", body, auth });
+  post<T>(path: string, body?: unknown) {
+    return this.request<T>(path, { method: "POST", body });
   }
 
   patch<T>(path: string, body?: unknown) {
