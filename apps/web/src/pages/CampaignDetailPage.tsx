@@ -406,7 +406,7 @@ function CampaignInfluencersSection({
 
   const influencerMap = new Map<
     string,
-    { id: string; name: string; email: string | null; completed: number; totalAssigned: number; assignmentIds: string[] }
+    { id: string; name: string; email: string | null; completed: number; totalAssigned: number; assignmentIds: string[]; statuses: string[] }
   >();
 
   for (const mission of campaign.missions) {
@@ -421,6 +421,7 @@ function CampaignInfluencersSection({
         if (existing) {
           existing.totalAssigned++;
           existing.assignmentIds.push(assignment.id);
+          existing.statuses.push(assignment.assignment_status);
           if (isCompleted) existing.completed++;
         } else {
           influencerMap.set(assignment.influencer_id, {
@@ -430,6 +431,7 @@ function CampaignInfluencersSection({
             totalAssigned: 1,
             completed: isCompleted ? 1 : 0,
             assignmentIds: [assignment.id],
+            statuses: [assignment.assignment_status],
           });
         }
       }
@@ -446,6 +448,16 @@ function CampaignInfluencersSection({
     }
     return (a.completed / (a.totalAssigned || 1) - b.completed / (b.totalAssigned || 1)) * dir;
   });
+
+  function getOverallStatus(statuses: string[]): { label: string; tone: "neutral" | "info" | "primary" | "success" | "warning" | "danger" } {
+    if (statuses.some((s) => s === "revision")) return { label: "Revision Requested", tone: "warning" };
+    if (statuses.some((s) => s === "submitted")) return { label: "Pending Review", tone: "primary" };
+    if (statuses.some((s) => s === "invited")) return { label: "Invited", tone: "info" };
+    if (statuses.some((s) => s === "accepted" || s === "in_progress")) return { label: "In Progress", tone: "info" };
+    if (statuses.every((s) => s === "completed" || s === "completed_by_cascade")) return { label: "Completed", tone: "success" };
+    if (statuses.some((s) => s === "declined")) return { label: "Declined", tone: "danger" };
+    return { label: "Pending", tone: "neutral" };
+  }
 
   function handleTeamSort(column: "name" | "status") {
     setTeamSort((prev) =>
@@ -506,8 +518,9 @@ function CampaignInfluencersSection({
                   </span>
                 ) : null}
               </th>
+              <th>Status</th>
               <th className="sortable-th" onClick={() => handleTeamSort("status")}>
-                Status
+                Progress
                 {teamSort.column === "status" ? (
                   <span className="sort-arrow sort-active">
                     {teamSort.direction === "asc" ? " \u25B2" : " \u25BC"}
@@ -522,6 +535,12 @@ function CampaignInfluencersSection({
               <tr key={inf.id}>
                 <td>
                   <Link to={`/influencers/${inf.id}`}>{inf.name}</Link>
+                </td>
+                <td>
+                  <StatusBadge
+                    label={getOverallStatus(inf.statuses).label}
+                    tone={getOverallStatus(inf.statuses).tone}
+                  />
                 </td>
                 <td>
                   {inf.completed} / {inf.totalAssigned}

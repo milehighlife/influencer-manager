@@ -17,6 +17,7 @@ import {
   useUpdateAssignmentMutation,
   useUpdateRatingMutation,
 } from "../hooks/use-influencer-manager";
+import { actionAssignmentsApi } from "../services/api";
 import { useAuthStore } from "../state/auth-store";
 import { formatDate, formatPlatform } from "../utils/format";
 
@@ -410,6 +411,177 @@ function RatingSection({
   );
 }
 
+function SubmissionReviewSection({
+  assignment,
+  canPlan,
+  onRefresh,
+}: {
+  assignment: {
+    id: string;
+    submission_url: string | null;
+    assignment_status: string;
+    submitted_at?: string | null;
+    revision_count?: number;
+    revision_reason?: string | null;
+    deliverables?: Array<{ id: string; submission_url: string | null; description: string | null; status: string; submitted_at: string | null }>;
+  };
+  canPlan: boolean;
+  onRefresh: () => void;
+}) {
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isSubmitted = assignment.assignment_status === "submitted";
+  const isRevision = assignment.assignment_status === "revision";
+
+  // Get notes from deliverables
+  const deliverableNotes = (assignment as Record<string, unknown>).deliverables
+    ? ((assignment as Record<string, unknown>).deliverables as Array<{ description: string | null }>)
+        .filter((d) => d.description)
+        .map((d) => d.description!)
+    : [];
+
+  async function handleApprove() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await actionAssignmentsApi.approve(assignment.id);
+      onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRequestRevision() {
+    if (!revisionReason.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await actionAssignmentsApi.requestRevision(assignment.id, revisionReason.trim());
+      setShowRevisionForm(false);
+      setRevisionReason("");
+      onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to request revision.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <PageSection
+      eyebrow="Submission"
+      title={isRevision ? "Revision Requested" : "Influencer Submission"}
+    >
+      {isRevision && (assignment as { revision_reason?: string }).revision_reason ? (
+        <div style={{ padding: "12px 16px", background: "var(--color-warning-surface)", border: "1px solid var(--color-warning)", borderRadius: 8, marginBottom: 12 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--color-warning)" }}>
+            Revision #{(assignment as { revision_count?: number }).revision_count ?? 1}: {(assignment as { revision_reason?: string }).revision_reason}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="detail-fields">
+        {assignment.submission_url ? (
+          <div className="detail-field">
+            <span className="detail-label">Action URL</span>
+            <a
+              href={assignment.submission_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="primary-link"
+              style={{ wordBreak: "break-all" }}
+            >
+              {assignment.submission_url}
+            </a>
+          </div>
+        ) : (
+          <div className="detail-field">
+            <span className="detail-label">Action URL</span>
+            <span className="muted">No URL submitted</span>
+          </div>
+        )}
+
+        {(assignment as { submitted_at?: string | null }).submitted_at ? (
+          <div className="detail-field">
+            <span className="detail-label">Submitted</span>
+            <span>{formatDate((assignment as { submitted_at?: string | null }).submitted_at, { mode: "datetime" })}</span>
+          </div>
+        ) : null}
+
+        {deliverableNotes.length > 0 ? (
+          <div className="detail-field">
+            <span className="detail-label">Notes from Influencer</span>
+            {deliverableNotes.map((note, i) => (
+              <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0, fontSize: 14, whiteSpace: "pre-wrap" }}>{note}</p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {canPlan && isSubmitted ? (
+        <div style={{ marginTop: 16 }}>
+          {showRevisionForm ? (
+            <div>
+              <label className="field" style={{ marginBottom: 12 }}>
+                <span>Revision reason (required)</span>
+                <textarea
+                  rows={3}
+                  value={revisionReason}
+                  onChange={(e) => setRevisionReason(e.target.value)}
+                  placeholder="Explain what needs to be revised..."
+                />
+              </label>
+              <div className="inline-actions">
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={submitting || !revisionReason.trim()}
+                  onClick={handleRequestRevision}
+                >
+                  {submitting ? "Sending..." : "Send Revision Request"}
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setShowRevisionForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="inline-actions">
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting}
+                onClick={handleApprove}
+              >
+                {submitting ? "Approving..." : "Approve"}
+              </button>
+              <button
+                className="secondary-button danger-button"
+                type="button"
+                disabled={submitting}
+                onClick={() => setShowRevisionForm(true)}
+              >
+                Request Revision
+              </button>
+            </div>
+          )}
+          {error ? <p className="error-copy" style={{ marginTop: 8 }}>{error}</p> : null}
+        </div>
+      ) : null}
+    </PageSection>
+  );
+}
+
 export function InfluencerActionDetailPage({
   canPlan,
 }: {
@@ -593,6 +765,14 @@ export function InfluencerActionDetailPage({
             currentPublishedAt={assignment.published_at}
           />
         </PageSection>
+      ) : null}
+
+      {assignment && (assignment.submission_url || assignment.assignment_status === "submitted" || assignment.assignment_status === "revision") ? (
+        <SubmissionReviewSection
+          assignment={assignment}
+          canPlan={canPlan}
+          onRefresh={() => { void campaignQuery.refetch(); }}
+        />
       ) : null}
 
       {assignment ? (

@@ -8,6 +8,7 @@ import {
 interface ComposeMessageDialogProps {
   influencerId: string;
   influencerName: string;
+  defaultSubject?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
   onClose: () => void;
@@ -17,12 +18,13 @@ interface ComposeMessageDialogProps {
 export function ComposeMessageDialog({
   influencerId,
   influencerName,
+  defaultSubject,
   relatedEntityType,
   relatedEntityId,
   onClose,
   onSuccess,
 }: ComposeMessageDialogProps) {
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(defaultSubject ?? "");
   const [body, setBody] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [sendEmail, setSendEmail] = useState(false);

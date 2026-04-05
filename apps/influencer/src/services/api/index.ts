@@ -49,7 +49,7 @@ export const assignmentsApi = {
   start(id: string) {
     return apiClient.post(`/influencer/assignments/${id}/start`);
   },
-  submit(id: string, deliverables: Array<{ deliverable_type: string; submission_url: string }>) {
+  submit(id: string, deliverables: Array<{ deliverable_type: string; submission_url: string; description?: string }>) {
     return apiClient.post(`/influencer/assignments/${id}/deliverables`, {
       deliverables,
     });

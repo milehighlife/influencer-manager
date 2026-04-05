@@ -12,4 +12,7 @@ export const authApi = {
   me() {
     return apiClient.get<AuthenticatedUser>("/auth/me");
   },
+  logout() {
+    return apiClient.post("/auth/logout");
+  },
 };

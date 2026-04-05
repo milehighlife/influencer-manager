@@ -373,6 +373,8 @@ export function ActionDetailPage() {
   const queryClient = useQueryClient();
   const [showBrief, setShowBrief] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [submissionUrl, setSubmissionUrl] = useState("");
+  const [submissionNotes, setSubmissionNotes] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["assignment", id],
@@ -414,15 +416,32 @@ export function ActionDetailPage() {
 
   const submitMutation = useMutation({
     mutationFn: () => {
-      const deliverables = (data?.deliverables ?? [])
+      // Collect URLs from existing deliverables + the new submission form
+      const existingDeliverables = (data?.deliverables ?? [])
         .filter((d) => d.submission_url)
         .map((d) => ({
           deliverable_type: d.deliverable_type,
           submission_url: d.submission_url!,
         }));
-      return assignmentsApi.submit(id!, deliverables);
+
+      const allDeliverables = [...existingDeliverables];
+
+      // Add the form URL if provided and not already in the list
+      if (submissionUrl.trim()) {
+        allDeliverables.push({
+          deliverable_type: "post_link",
+          submission_url: submissionUrl.trim(),
+          description: submissionNotes.trim() || undefined,
+        });
+      }
+
+      return assignmentsApi.submit(id!, allDeliverables);
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setSubmissionUrl("");
+      setSubmissionNotes("");
+      invalidate();
+    },
     onError: (err: Error) => setActionError(err.message),
   });
 
@@ -476,9 +495,10 @@ export function ActionDetailPage() {
 
   function canSubmit(): boolean {
     if (status !== "in_progress" && status !== "revision") return false;
-    const requiredCount = action.required_deliverables || 0;
-    const filledCount = deliverables.filter((d) => d.submission_url).length;
-    return filledCount >= requiredCount;
+    const requiredCount = action.required_deliverables || 1;
+    const existingCount = deliverables.filter((d) => d.submission_url).length;
+    const formCount = submissionUrl.trim() ? 1 : 0;
+    return (existingCount + formCount) >= requiredCount;
   }
 
   // ---------- Invitation view ----------
@@ -593,6 +613,57 @@ export function ActionDetailPage() {
           />
         ))}
       </div>
+
+      {/* Submission Form */}
+      {(status === "in_progress" || status === "revision") ? (
+        <div className="section">
+          <h2 className="section-title">Submit Your Work</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--color-ink-secondary)" }}>
+                Action URL
+              </label>
+              <input
+                type="url"
+                placeholder="Paste your content URL..."
+                value={submissionUrl}
+                onChange={(e) => setSubmissionUrl(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10,
+                  fontSize: 15,
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--color-ink-secondary)" }}>
+                Notes
+              </label>
+              <textarea
+                placeholder="Add any notes for the campaign manager..."
+                value={submissionNotes}
+                onChange={(e) => setSubmissionNotes(e.target.value)}
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10,
+                  fontSize: 15,
+                  resize: "vertical",
+                }}
+              />
+            </div>
+            {!canSubmit() && submissionUrl.trim() === "" ? (
+              <p style={{ margin: 0, fontSize: 13, color: "var(--color-ink-tertiary)" }}>
+                Enter a URL to enable submission.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* Error display */}
       {actionError && (

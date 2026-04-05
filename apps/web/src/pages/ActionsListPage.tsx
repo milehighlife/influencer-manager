@@ -6,7 +6,6 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { PageSection } from "../components/PageSection";
 import {
-  useUnratedPublishedActions,
   useOverdueActions,
   useReviewedActions,
   usePendingReviewActions,
@@ -63,7 +62,6 @@ export function ActionsListPage() {
   const trimmedSearch = search.trim() || undefined;
 
   const [pendingPage, setPendingPage] = useState(1);
-  const [reviewPage, setReviewPage] = useState(1);
   const [overduePage, setOverduePage] = useState(1);
   const [reviewedPage, setReviewedPage] = useState(1);
   const [reviewingItemId, setReviewingItemId] = useState<string | null>(null);
@@ -76,14 +74,6 @@ export function ActionsListPage() {
     isError: pendingError,
     query: pendingQuery,
   } = usePendingReviewActions(trimmedSearch, pendingPage, PAGE_LIMIT);
-
-  const {
-    items: reviewItems,
-    meta: reviewMeta,
-    isLoading: reviewLoading,
-    isError: reviewError,
-    query: reviewQuery,
-  } = useUnratedPublishedActions(trimmedSearch, reviewPage, PAGE_LIMIT);
 
   const {
     items: overdueItems,
@@ -108,7 +98,6 @@ export function ActionsListPage() {
   function handleSearchChange(value: string) {
     setSearch(value);
     setPendingPage(1);
-    setReviewPage(1);
     setOverduePage(1);
     setReviewedPage(1);
   }
@@ -175,15 +164,18 @@ export function ActionsListPage() {
                         item.campaign_name ?? "—"
                       )}
                     </td>
-                    <td>{item.due_date ? formatDate(item.due_date) : "—"}</td>
                     <td>
-                      <button
+                      {item.submitted_at
+                        ? new Date(item.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "—"}
+                    </td>
+                    <td>
+                      <Link
                         className="secondary-button"
-                        type="button"
-                        onClick={() => setReviewingItemId(item.id)}
+                        to={`/influencers/${item.influencer_id}/campaigns/${item.campaign_id}/actions/${item.action_id}`}
                       >
                         Review
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -199,76 +191,6 @@ export function ActionsListPage() {
                 onNext={() =>
                   setPendingPage((p) =>
                     pendingMeta.totalPages > p ? p + 1 : p,
-                  )
-                }
-              />
-            ) : null}
-          </>
-        ) : null}
-      </PageSection>
-
-      <PageSection eyebrow="Review" title="Submitted Actions — Awaiting Rating">
-        {reviewLoading ? <p className="muted">Loading actions...</p> : null}
-        {reviewError ? (
-          <ErrorState
-            message="Actions could not be loaded."
-            onRetry={() => {
-              void reviewQuery.refetch();
-            }}
-          />
-        ) : null}
-        {!reviewLoading && !reviewError && reviewItems.length === 0 ? (
-          <EmptyState
-            title={search ? "No actions match this search" : "All caught up"}
-            message={
-              search
-                ? "Adjust search to broaden results."
-                : "No submitted actions are awaiting a rating."
-            }
-          />
-        ) : null}
-        {!reviewLoading && !reviewError && reviewItems.length > 0 ? (
-          <>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Action</th>
-                  <th>Client</th>
-                  <th>Company</th>
-                  <th>Influencer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviewItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <Link
-                        to={`/influencers/${item.influencer_id}/campaigns/${item.campaign_id}/actions/${item.action_id}`}
-                      >
-                        {item.action_title}
-                      </Link>
-                    </td>
-                    <td>{item.client_name ?? "—"}</td>
-                    <td>{item.company_name ?? "—"}</td>
-                    <td>
-                      <Link to={`/influencers/${item.influencer_id}`}>
-                        {item.influencer_name}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {reviewMeta && reviewMeta.totalPages > 1 ? (
-              <Pagination
-                page={reviewMeta.page}
-                totalPages={reviewMeta.totalPages}
-                total={reviewMeta.total}
-                label="actions"
-                onPrev={() => setReviewPage((p) => Math.max(1, p - 1))}
-                onNext={() =>
-                  setReviewPage((p) =>
-                    reviewMeta.totalPages > p ? p + 1 : p,
                   )
                 }
               />

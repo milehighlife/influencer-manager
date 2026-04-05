@@ -7,6 +7,8 @@ import {
   SOCIAL_PLATFORMS,
 } from "@influencer-manager/shared/types/mobile";
 import type { Influencer } from "@influencer-manager/shared/types/mobile";
+import { BulkCampaignMessageDialog } from "../components/BulkCampaignMessageDialog";
+import { ComposeMessageDialog } from "../components/ComposeMessageDialog";
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
 import { PageSection } from "../components/PageSection";
@@ -239,6 +241,7 @@ export function ActionDetailPage() {
       <AssignmentsSection
         action={action}
         campaignId={campaignId!}
+        campaignName={campaign.name}
         clientId={campaign.company.client_id}
         campaignStatus={campaign.status}
       />
@@ -396,11 +399,13 @@ function AssignmentsEditMode({
 function AssignmentsSection({
   action,
   campaignId,
+  campaignName,
   clientId,
   campaignStatus,
 }: {
   action: NonNullable<ReturnType<typeof useCampaignPlanningViewQuery>["data"]>["missions"][number]["actions"][number];
   campaignId: string;
+  campaignName: string;
   clientId: string;
   campaignStatus: string;
 }) {
@@ -409,6 +414,11 @@ function AssignmentsSection({
   const [sortCol, setSortCol] = useState<AssignSortCol>("influencer");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editMode, setEditMode] = useState(false);
+  const [showBulkMessage, setShowBulkMessage] = useState(false);
+  const [messagingInfluencer, setMessagingInfluencer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{
     assignmentId: string;
     influencerName: string;
@@ -489,15 +499,26 @@ function AssignmentsSection({
       eyebrow="Assignments"
       title="Assigned influencers"
       actions={
-        !editMode && !isClosed ? (
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setEditMode(true)}
-          >
-            Edit
-          </button>
-        ) : null
+        <div className="inline-actions">
+          {action.assignments.length > 0 ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setShowBulkMessage(true)}
+            >
+              Message All
+            </button>
+          ) : null}
+          {!editMode && !isClosed ? (
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setEditMode(true)}
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
       }
     >
       {editMode ? (
@@ -558,18 +579,33 @@ function AssignmentsSection({
                 <td>{(assignment.total_shares ?? 0).toLocaleString()}</td>
                 {isClosed ? null : (
                   <td className="remove-cell">
-                    <button
-                      className="remove-button"
-                      type="button"
-                      onClick={() =>
-                        setConfirmRemove({
-                          assignmentId: assignment.id,
-                          influencerName: assignment.influencer_summary.name,
-                        })
-                      }
-                    >
-                      Remove
-                    </button>
+                    <div className="inline-actions">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        style={{ fontSize: 12, padding: "4px 10px" }}
+                        onClick={() =>
+                          setMessagingInfluencer({
+                            id: assignment.influencer_id,
+                            name: assignment.influencer_summary.name,
+                          })
+                        }
+                      >
+                        Message
+                      </button>
+                      <button
+                        className="remove-button"
+                        type="button"
+                        onClick={() =>
+                          setConfirmRemove({
+                            assignmentId: assignment.id,
+                            influencerName: assignment.influencer_summary.name,
+                          })
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>
@@ -590,6 +626,29 @@ function AssignmentsSection({
               setConfirmRemove(null);
             }
           }}
+        />
+      ) : null}
+
+      {messagingInfluencer ? (
+        <ComposeMessageDialog
+          influencerId={messagingInfluencer.id}
+          influencerName={messagingInfluencer.name}
+          defaultSubject={`${campaignName} - ${action.title}`}
+          relatedEntityType="action"
+          relatedEntityId={action.id}
+          onClose={() => setMessagingInfluencer(null)}
+          onSuccess={() => setMessagingInfluencer(null)}
+        />
+      ) : null}
+
+      {showBulkMessage ? (
+        <BulkCampaignMessageDialog
+          campaignId={campaignId}
+          campaignName={`${campaignName} - ${action.title}`}
+          influencerIds={action.assignments.map((a) => a.influencer_id)}
+          influencerCount={action.assignments.length}
+          onClose={() => setShowBulkMessage(false)}
+          onSuccess={() => setShowBulkMessage(false)}
         />
       ) : null}
     </PageSection>

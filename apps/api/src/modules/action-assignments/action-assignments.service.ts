@@ -431,12 +431,16 @@ export class ActionAssignmentsService {
         );
       }
 
+      // Save the first deliverable URL to the assignment for easy access
+      const firstUrl = deliverables.find((d) => d.submission_url)?.submission_url ?? null;
+
       const updatedAssignment = await tx.actionAssignment.update({
         where: { id },
         data: {
           assignment_status: AssignmentStatus.submitted,
           deliverable_count_submitted: nextSubmittedCount,
           submitted_at: submittedAt,
+          ...(firstUrl ? { submission_url: firstUrl } : {}),
         },
       });
 

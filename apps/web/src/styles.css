@@ -829,6 +829,7 @@ textarea {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  font-size: 13px;
 }
 
 .data-table th,
@@ -1315,6 +1316,10 @@ textarea {
 .remove-cell {
   width: 1%;
   white-space: nowrap;
+}
+
+.remove-cell .inline-actions {
+  flex-wrap: nowrap;
 }
 
 .remove-button {

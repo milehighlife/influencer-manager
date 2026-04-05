@@ -406,7 +406,7 @@ export function InboxPage() {
         ) : null}
         {!isLoading && !isError && items.length > 0 ? (
           <>
-            <table className="data-table" style={{ fontSize: 13 }}>
+            <table className="data-table">
               <thead>
                 <tr>
                   <th style={{ width: 32 }}>

@@ -137,6 +137,7 @@ export interface UnratedPublishedAction {
   influencer_id: string;
   influencer_name: string;
   due_date: string | null;
+  submitted_at?: string | null;
   rating_average?: number | null;
   submission_url?: string | null;
 }
