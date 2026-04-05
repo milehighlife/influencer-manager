@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -8,7 +9,9 @@ import {
   useUnratedPublishedActions,
   useOverdueActions,
   useReviewedActions,
+  usePendingReviewActions,
 } from "../hooks/use-campaign-builder";
+import { actionAssignmentsApi } from "../services/api";
 import { formatDate } from "../utils/format";
 
 const PAGE_LIMIT = 10;
@@ -59,9 +62,20 @@ export function ActionsListPage() {
   const [search, setSearch] = useState("");
   const trimmedSearch = search.trim() || undefined;
 
+  const [pendingPage, setPendingPage] = useState(1);
   const [reviewPage, setReviewPage] = useState(1);
   const [overduePage, setOverduePage] = useState(1);
   const [reviewedPage, setReviewedPage] = useState(1);
+  const [reviewingItemId, setReviewingItemId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const {
+    items: pendingItems,
+    meta: pendingMeta,
+    isLoading: pendingLoading,
+    isError: pendingError,
+    query: pendingQuery,
+  } = usePendingReviewActions(trimmedSearch, pendingPage, PAGE_LIMIT);
 
   const {
     items: reviewItems,
@@ -87,8 +101,13 @@ export function ActionsListPage() {
     query: reviewedQuery,
   } = useReviewedActions(trimmedSearch, reviewedPage, PAGE_LIMIT);
 
+  const reviewingItem = reviewingItemId
+    ? pendingItems.find((item) => item.id === reviewingItemId) ?? null
+    : null;
+
   function handleSearchChange(value: string) {
     setSearch(value);
+    setPendingPage(1);
     setReviewPage(1);
     setOverduePage(1);
     setReviewedPage(1);
@@ -105,6 +124,88 @@ export function ActionsListPage() {
           onChange={(e) => handleSearchChange(e.target.value)}
         />
       </div>
+
+      <PageSection eyebrow="Pending" title="Pending Review — Submitted Assignments">
+        {pendingLoading ? <p className="muted">Loading...</p> : null}
+        {pendingError ? (
+          <ErrorState
+            message="Pending review items could not be loaded."
+            onRetry={() => {
+              void pendingQuery.refetch();
+            }}
+          />
+        ) : null}
+        {!pendingLoading && !pendingError && pendingItems.length === 0 ? (
+          <EmptyState
+            title={search ? "No pending items match this search" : "No pending reviews"}
+            message={
+              search
+                ? "Adjust search to broaden results."
+                : "No assignments are awaiting review."
+            }
+          />
+        ) : null}
+        {!pendingLoading && !pendingError && pendingItems.length > 0 ? (
+          <>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Influencer</th>
+                  <th>Campaign</th>
+                  <th>Submitted</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.action_title}</td>
+                    <td>
+                      <Link to={`/influencers/${item.influencer_id}`}>
+                        {item.influencer_name}
+                      </Link>
+                    </td>
+                    <td>
+                      {item.campaign_id ? (
+                        <Link to={`/campaigns/${item.campaign_id}`}>
+                          {item.campaign_name}
+                        </Link>
+                      ) : (
+                        item.campaign_name ?? "—"
+                      )}
+                    </td>
+                    <td>{item.due_date ? formatDate(item.due_date) : "—"}</td>
+                    <td>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => setReviewingItemId(item.id)}
+                      >
+                        Review
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pendingMeta && pendingMeta.totalPages > 1 ? (
+              <Pagination
+                page={pendingMeta.page}
+                totalPages={pendingMeta.totalPages}
+                total={pendingMeta.total}
+                label="pending"
+                onPrev={() => setPendingPage((p) => Math.max(1, p - 1))}
+                onNext={() =>
+                  setPendingPage((p) =>
+                    pendingMeta.totalPages > p ? p + 1 : p,
+                  )
+                }
+              />
+            ) : null}
+          </>
+        ) : null}
+      </PageSection>
 
       <PageSection eyebrow="Review" title="Submitted Actions — Awaiting Rating">
         {reviewLoading ? <p className="muted">Loading actions...</p> : null}
@@ -336,6 +437,173 @@ export function ActionsListPage() {
           </>
         ) : null}
       </PageSection>
+
+      {reviewingItem ? (
+        <ReviewAssignmentDialog
+          item={reviewingItem}
+          onClose={() => setReviewingItemId(null)}
+          onSuccess={() => {
+            setReviewingItemId(null);
+            void pendingQuery.refetch();
+            void queryClient.invalidateQueries({ queryKey: ["web", "action-assignments"] });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ReviewAssignmentDialog({
+  item,
+  onClose,
+  onSuccess,
+}: {
+  item: {
+    id: string;
+    action_title: string;
+    influencer_name: string;
+    campaign_name: string | null;
+    submission_url?: string | null;
+    due_date: string | null;
+    rating_average?: number | null;
+  };
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [mode, setMode] = useState<"view" | "revision">("view");
+  const [revisionReason, setRevisionReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleApprove() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await actionAssignmentsApi.approve(item.id);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRequestRevision() {
+    if (!revisionReason.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await actionAssignmentsApi.requestRevision(item.id, revisionReason.trim());
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to request revision.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="confirm-overlay" onClick={onClose}>
+      <div
+        className="confirm-dialog cascade-dialog"
+        style={{ maxWidth: 520 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Review Submission</h3>
+
+        <div className="cascade-dialog-body">
+          <p style={{ margin: "0 0 8px" }}>
+            <strong>{item.influencer_name}</strong> — {item.action_title}
+          </p>
+          {item.campaign_name ? (
+            <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+              Campaign: {item.campaign_name}
+            </p>
+          ) : null}
+
+          {item.submission_url ? (
+            <p style={{ margin: "0 0 12px" }}>
+              <a
+                className="primary-link"
+                href={item.submission_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Submission
+              </a>
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
+              No submission URL provided.
+            </p>
+          )}
+
+          {mode === "revision" ? (
+            <label className="field" style={{ marginBottom: 12 }}>
+              <span>Revision Reason (required)</span>
+              <textarea
+                rows={4}
+                value={revisionReason}
+                onChange={(e) => setRevisionReason(e.target.value)}
+                placeholder="Explain what needs to be revised..."
+                required
+              />
+            </label>
+          ) : null}
+        </div>
+
+        {error ? <p className="error-copy" style={{ marginTop: 8 }}>{error}</p> : null}
+
+        <div className="confirm-dialog-actions" style={{ marginTop: 16 }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          {mode === "view" ? (
+            <>
+              <button
+                className="secondary-button danger-button"
+                type="button"
+                disabled={submitting}
+                onClick={() => setMode("revision")}
+              >
+                Request Revision
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting}
+                onClick={handleApprove}
+              >
+                {submitting ? "Approving..." : "Approve"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={submitting}
+                onClick={() => setMode("view")}
+              >
+                Back
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting || !revisionReason.trim()}
+                onClick={handleRequestRevision}
+              >
+                {submitting ? "Sending..." : "Send Revision Request"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

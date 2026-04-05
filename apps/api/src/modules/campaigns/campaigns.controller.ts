@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 
 import { CurrentOrganizationId } from "../../common/decorators/current-organization-id.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -18,6 +19,7 @@ import { CampaignsService } from "./campaigns.service";
 import { CompleteCampaignCascadeDto } from "./dto/complete-campaign-cascade.dto";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { CreateCompanyCampaignDto } from "./dto/create-company-campaign.dto";
+import { InviteInfluencersDto } from "./dto/invite-influencers.dto";
 import { QueryCampaignsDto } from "./dto/query-campaigns.dto";
 import { UpdateCampaignDto } from "./dto/update-campaign.dto";
 
@@ -104,6 +106,36 @@ export class CampaignsController {
       companyId,
       dto,
     );
+  }
+
+  @Post("campaigns/:id/invite")
+  @SkipThrottle()
+  @Roles("organization_admin", "campaign_manager")
+  invite(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+    @Body() dto: InviteInfluencersDto,
+  ) {
+    return this.campaignsService.inviteInfluencers(
+      organizationId,
+      id,
+      dto.influencer_ids,
+    );
+  }
+
+  @Get("campaigns/:id/influencer-summary")
+  @Roles(
+    "organization_admin",
+    "campaign_manager",
+    "campaign_editor",
+    "analyst",
+    "viewer",
+  )
+  getInfluencerSummary(
+    @CurrentOrganizationId() organizationId: string,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.campaignsService.getInfluencerSummary(organizationId, id);
   }
 
   @Get("campaigns/:id/cascade-preview")

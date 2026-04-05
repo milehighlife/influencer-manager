@@ -331,6 +331,7 @@ export class ActionAssignmentsService {
       AssignmentStatus.accepted,
       user,
       "assignment_accept",
+      { accepted_at: new Date() },
     );
   }
 
@@ -435,6 +436,7 @@ export class ActionAssignmentsService {
         data: {
           assignment_status: AssignmentStatus.submitted,
           deliverable_count_submitted: nextSubmittedCount,
+          submitted_at: submittedAt,
         },
       });
 
@@ -558,6 +560,175 @@ export class ActionAssignmentsService {
       );
 
       return updatedAssignment;
+    });
+  }
+
+  async approve(
+    organizationId: string,
+    id: string,
+    user: AuthenticatedUser,
+  ) {
+    return this.transitionAssignmentStatus(
+      organizationId,
+      id,
+      AssignmentStatus.completed,
+      user,
+      "assignment_approve",
+      { completed_at: new Date(), completion_date: new Date() },
+    );
+  }
+
+  async requestRevision(
+    organizationId: string,
+    id: string,
+    user: AuthenticatedUser,
+    reason: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const assignment = await tx.actionAssignment.findFirst({
+        where: { id, organization_id: organizationId },
+      });
+
+      if (!assignment) {
+        throw new NotFoundException("Action assignment not found.");
+      }
+
+      assertValidStateTransition(
+        "action_assignment",
+        assignment.assignment_status,
+        AssignmentStatus.revision,
+      );
+
+      const updatedAssignment = await tx.actionAssignment.update({
+        where: { id },
+        data: {
+          assignment_status: AssignmentStatus.revision,
+          revision_reason: reason,
+          revision_count: { increment: 1 },
+        },
+      });
+
+      await this.auditLogService.logUserEvent(
+        {
+          organizationId,
+          entityType: "action_assignment",
+          entityId: id,
+          parentEntityType: "action",
+          parentEntityId: assignment.action_id,
+          eventType: "assignment_state_changed",
+          changedById: user.id,
+          previousValue: {
+            assignment_status: assignment.assignment_status,
+          },
+          newValue: {
+            assignment_status: updatedAssignment.assignment_status,
+            revision_count: updatedAssignment.revision_count,
+            revision_reason: updatedAssignment.revision_reason,
+          },
+          metadataJson: {
+            workflow_action: "request_revision",
+            reason,
+          },
+        },
+        tx,
+      );
+
+      return updatedAssignment;
+    });
+  }
+
+  async findPendingReview(
+    organizationId: string,
+    campaignId?: string,
+    page = 1,
+    limit = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ActionAssignmentWhereInput = {
+      organization_id: organizationId,
+      assignment_status: AssignmentStatus.submitted,
+      ...(campaignId
+        ? {
+            action: {
+              mission: {
+                campaign_id: campaignId,
+              },
+            },
+          }
+        : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.actionAssignment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { submitted_at: "desc" },
+        include: {
+          action: {
+            select: {
+              id: true,
+              title: true,
+              mission: {
+                select: {
+                  campaign: {
+                    select: { id: true, name: true },
+                  },
+                },
+              },
+            },
+          },
+          influencer: {
+            select: { id: true, name: true },
+          },
+        },
+      }),
+      this.prisma.actionAssignment.count({ where }),
+    ]);
+
+    const data = rows.map((a) => ({
+      id: a.id,
+      action_id: a.action_id,
+      action_title: a.action.title,
+      campaign_id: a.action.mission?.campaign?.id ?? null,
+      campaign_name: a.action.mission?.campaign?.name ?? null,
+      influencer_id: a.influencer.id,
+      influencer_name: a.influencer.name,
+      submitted_at: a.submitted_at?.toISOString() ?? null,
+    }));
+
+    return buildPaginatedResponse(data, total, page, limit);
+  }
+
+  async decline(
+    organizationId: string,
+    id: string,
+    influencerId: string,
+  ) {
+    const assignment = await this.prisma.actionAssignment.findFirst({
+      where: {
+        id,
+        organization_id: organizationId,
+        influencer_id: influencerId,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException("Action assignment not found.");
+    }
+
+    assertValidStateTransition(
+      "action_assignment",
+      assignment.assignment_status,
+      AssignmentStatus.declined,
+    );
+
+    return this.prisma.actionAssignment.update({
+      where: { id },
+      data: {
+        assignment_status: AssignmentStatus.declined,
+      },
     });
   }
 

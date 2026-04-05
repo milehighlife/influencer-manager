@@ -114,14 +114,17 @@ enum InfluencerStatus {
 }
 
 enum AssignmentStatus {
+  invited
   assigned
   accepted
   in_progress
   submitted
+  revision
   approved
   rejected
   completed
   completed_by_cascade
+  declined
 
   @@map("assignment_status")
 }
@@ -505,8 +508,14 @@ model ActionAssignment {
   organization_id              String            @db.Uuid
   action_id                    String            @db.Uuid
   influencer_id                String            @db.Uuid
-  assignment_status            AssignmentStatus  @default(assigned)
+  assignment_status            AssignmentStatus  @default(invited)
   cascade_reason               String?
+  invited_at                   DateTime?         @db.Timestamptz(6)
+  accepted_at                  DateTime?         @db.Timestamptz(6)
+  submitted_at                 DateTime?         @db.Timestamptz(6)
+  completed_at                 DateTime?         @db.Timestamptz(6)
+  revision_count               Int               @default(0)
+  revision_reason              String?
   assigned_at                  DateTime          @default(now()) @db.Timestamptz(6)
   due_date                     DateTime?         @db.Timestamptz(6)
   completion_date              DateTime?         @db.Timestamptz(6)

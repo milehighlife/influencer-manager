@@ -43,6 +43,9 @@ export const assignmentsApi = {
   accept(id: string) {
     return apiClient.post(`/influencer/assignments/${id}/accept`);
   },
+  decline(id: string) {
+    return apiClient.post(`/influencer/assignments/${id}/decline`);
+  },
   start(id: string) {
     return apiClient.post(`/influencer/assignments/${id}/start`);
   },

@@ -61,6 +61,19 @@ export class InfluencerWorkspaceController {
     );
   }
 
+  @Post("assignments/:id/decline")
+  declineAssignment(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.influencerWorkspaceService.declineAssignment(
+      organizationId,
+      user,
+      id,
+    );
+  }
+
   @Post("assignments/:id/start")
   startAssignment(
     @CurrentOrganizationId() organizationId: string,

@@ -84,9 +84,12 @@ export class ConversationsService {
             },
           },
           participants: {
-            where: { user_id: userId },
-            select: { last_read_at: true },
-            take: 1,
+            select: {
+              user_id: true,
+              influencer_id: true,
+              last_read_at: true,
+              influencer: { select: { name: true } },
+            },
           },
           _count: { select: { participants: true } },
         },
@@ -99,16 +102,20 @@ export class ConversationsService {
 
     let data = rows.map(({ messages, participants, _count, ...conv }) => {
       const lastMessage = messages[0] ?? null;
-      const lastReadAt = participants[0]?.last_read_at;
+      const userParticipant = participants.find((p) => p.user_id === userId);
+      const influencerParticipant = participants.find((p) => p.influencer_id !== null);
+      const lastReadAt = userParticipant?.last_read_at;
       const unread = lastMessage
         ? !lastReadAt || lastReadAt < lastMessage.created_at
         : false;
       const needsReply = lastMessage
         ? lastMessage.sender_type === "influencer"
         : false;
+      const influencerName = influencerParticipant?.influencer?.name ?? null;
 
       return {
         ...conv,
+        influencer_name: influencerName,
         last_message: lastMessage
           ? {
               id: lastMessage.id,
@@ -401,6 +408,19 @@ export class ConversationsService {
       conversation_id: conversationId,
     };
 
+    // Get influencer participant name for resolving influencer-sent messages
+    const influencerParticipant =
+      await this.prisma.conversationParticipant.findFirst({
+        where: {
+          conversation_id: conversationId,
+          influencer_id: { not: null },
+        },
+        include: {
+          influencer: { select: { name: true } },
+        },
+      });
+    const influencerName = influencerParticipant?.influencer?.name ?? null;
+
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.message.findMany({
         where,
@@ -417,7 +437,10 @@ export class ConversationsService {
 
     const data = rows.map(({ sender, ...msg }) => ({
       ...msg,
-      sender_name: sender?.full_name ?? null,
+      sender_name:
+        msg.sender_type === "influencer"
+          ? influencerName
+          : sender?.full_name ?? null,
     }));
 
     return buildPaginatedResponse(data, total, page, limit);

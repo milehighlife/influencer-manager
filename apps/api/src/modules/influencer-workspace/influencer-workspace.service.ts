@@ -348,14 +348,17 @@ export class InfluencerWorkspaceService {
     ];
 
     const statusCounts: Record<AssignmentStatus, number> = {
+      invited: 0,
       assigned: 0,
       accepted: 0,
       in_progress: 0,
       submitted: 0,
+      revision: 0,
       approved: 0,
       rejected: 0,
       completed: 0,
       completed_by_cascade: 0,
+      declined: 0,
     };
 
     for (const row of groupedCounts) {
@@ -891,6 +894,21 @@ export class InfluencerWorkspaceService {
     await this.findOwnedAssignment(organizationId, assignmentId, influencerId);
 
     return this.actionAssignmentsService.accept(organizationId, assignmentId, user);
+  }
+
+  async declineAssignment(
+    organizationId: string,
+    user: AuthenticatedUser,
+    assignmentId: string,
+  ) {
+    const influencerId = this.getRequiredInfluencerId(user);
+    await this.findOwnedAssignment(organizationId, assignmentId, influencerId);
+
+    return this.actionAssignmentsService.decline(
+      organizationId,
+      assignmentId,
+      influencerId,
+    );
   }
 
   async startAssignment(

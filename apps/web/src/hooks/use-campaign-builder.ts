@@ -219,6 +219,27 @@ export function useReviewedActions(
   };
 }
 
+export function usePendingReviewActions(
+  search?: string,
+  page = 1,
+  limit = 10,
+) {
+  const query = useQuery({
+    queryKey: ["web", "action-assignments", "pending-review", search, page, limit],
+    queryFn: () =>
+      actionAssignmentsApi.getPendingReview({ search, page, limit }),
+    placeholderData: keepPreviousData,
+  });
+
+  return {
+    items: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    query,
+  };
+}
+
 export function useOverdueActions(
   search?: string,
   page = 1,

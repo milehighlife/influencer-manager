@@ -401,6 +401,7 @@ function CampaignInfluencersSection({
   const [removing, setRemoving] = useState<string | null>(null);
   const [teamPage, setTeamPage] = useState(1);
   const [showMessageAll, setShowMessageAll] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const teamPageSize = 20;
 
   const influencerMap = new Map<
@@ -415,7 +416,8 @@ function CampaignInfluencersSection({
         const isCompleted =
           assignment.assignment_status === "submitted" ||
           assignment.assignment_status === "approved" ||
-          assignment.assignment_status === "completed";
+          assignment.assignment_status === "completed" ||
+          assignment.assignment_status === "revision";
         if (existing) {
           existing.totalAssigned++;
           existing.assignmentIds.push(assignment.id);
@@ -470,9 +472,18 @@ function CampaignInfluencersSection({
             </button>
           ) : null}
           {campaign.status !== "completed" && campaign.status !== "archived" ? (
-            <Link className="primary-button" to={`/campaigns/${campaign.id}/assign`}>
-              Assign Influencer
-            </Link>
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowInvite(true)}
+              >
+                Invite Influencers
+              </button>
+              <Link className="primary-button" to={`/campaigns/${campaign.id}/assign`}>
+                Assign Influencer
+              </Link>
+            </>
           ) : null}
         </div>
       }
@@ -625,7 +636,218 @@ function CampaignInfluencersSection({
           onSuccess={() => setShowMessageAll(false)}
         />
       ) : null}
+
+      {showInvite ? (
+        <InviteInfluencersDialog
+          campaign={campaign}
+          onClose={() => setShowInvite(false)}
+          onSuccess={() => {
+            setShowInvite(false);
+            onRefresh();
+          }}
+        />
+      ) : null}
     </PageSection>
+  );
+}
+
+function InviteInfluencersDialog({
+  campaign,
+  onClose,
+  onSuccess,
+}: {
+  campaign: NonNullable<ReturnType<typeof useCampaignPlanningViewQuery>["data"]>;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [eligibleInfluencers, setEligibleInfluencers] = useState<
+    { id: string; name: string; platforms: string[] }[]
+  >([]);
+
+  const clientId = campaign.company?.client_id ?? null;
+
+  // Gather all action platforms in this campaign
+  const actionPlatforms = new Set<string>();
+  for (const mission of campaign.missions) {
+    for (const action of mission.actions) {
+      actionPlatforms.add(action.platform);
+    }
+  }
+
+  let totalActions = 0;
+  for (const mission of campaign.missions) {
+    totalActions += mission.actions.length;
+  }
+
+  // Load influencers on mount
+  React.useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { influencersApi } = await import("../services/api");
+        const results = await influencersApi.listByClientAndPlatform(clientId);
+        if (cancelled) return;
+
+        const platformKeys = ["url_instagram", "url_tiktok", "url_facebook", "url_youtube", "url_linkedin", "url_x", "url_threads"] as const;
+        const platformNames: Record<string, string> = {
+          url_instagram: "instagram",
+          url_tiktok: "tiktok",
+          url_facebook: "facebook",
+          url_youtube: "youtube",
+          url_linkedin: "linkedin",
+          url_x: "x",
+          url_threads: "threads",
+        };
+
+        const mapped = results.map((inf) => {
+          const platforms: string[] = [];
+          for (const key of platformKeys) {
+            if (inf[key]) {
+              platforms.push(platformNames[key]);
+            }
+          }
+          return { id: inf.id, name: inf.name, platforms };
+        });
+
+        setEligibleInfluencers(mapped);
+        setLoaded(true);
+      } catch {
+        setError("Failed to load influencers.");
+        setLoaded(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllMatching() {
+    const matching = eligibleInfluencers.filter((inf) =>
+      inf.platforms.some((p) => actionPlatforms.has(p)),
+    );
+    setSelected(new Set(matching.map((inf) => inf.id)));
+  }
+
+  async function handleInvite() {
+    if (selected.size === 0) return;
+    setSending(true);
+    setError(null);
+    try {
+      const { campaignsApi } = await import("../services/api");
+      await campaignsApi.invite(campaign.id, Array.from(selected));
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send invitations.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="confirm-overlay" onClick={onClose}>
+      <div
+        className="confirm-dialog cascade-dialog"
+        style={{ maxWidth: 640 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Invite Influencers</h3>
+        <p className="muted" style={{ margin: "0 0 12px", fontSize: 14 }}>
+          Select influencers to invite to <strong>{campaign.name}</strong>.
+        </p>
+
+        {!clientId ? (
+          <p className="muted">This campaign has no associated client.</p>
+        ) : !loaded ? (
+          <p className="muted">Loading influencers...</p>
+        ) : eligibleInfluencers.length === 0 ? (
+          <p className="muted">No influencers are associated with this client.</p>
+        ) : (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <button
+                className="primary-link"
+                type="button"
+                style={{ background: "none", border: "none", cursor: "pointer", font: "inherit" }}
+                onClick={selectAllMatching}
+              >
+                Select All Matching
+              </button>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}></th>
+                    <th>Name</th>
+                    <th>Platforms</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eligibleInfluencers.map((inf) => (
+                    <tr key={inf.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(inf.id)}
+                          onChange={() => toggleSelect(inf.id)}
+                        />
+                      </td>
+                      <td>{inf.name}</td>
+                      <td>
+                        {inf.platforms.length > 0
+                          ? inf.platforms.join(", ")
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selected.size > 0 ? (
+              <p className="muted" style={{ margin: "12px 0 0", fontSize: 13 }}>
+                Inviting {selected.size} influencer{selected.size === 1 ? "" : "s"} to {totalActions} action{totalActions === 1 ? "" : "s"}
+              </p>
+            ) : null}
+          </>
+        )}
+
+        {error ? <p className="error-copy" style={{ marginTop: 8 }}>{error}</p> : null}
+
+        <div className="confirm-dialog-actions" style={{ marginTop: 16 }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onClose}
+            disabled={sending}
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={sending || selected.size === 0}
+            onClick={handleInvite}
+          >
+            {sending ? "Inviting..." : `Invite ${selected.size} Influencer${selected.size === 1 ? "" : "s"}`}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -652,7 +874,8 @@ function CampaignMetricsSection({
         if (
           assignment.assignment_status === "submitted" ||
           assignment.assignment_status === "approved" ||
-          assignment.assignment_status === "completed"
+          assignment.assignment_status === "completed" ||
+          assignment.assignment_status === "revision"
         ) {
           totalSubmitted++;
         }

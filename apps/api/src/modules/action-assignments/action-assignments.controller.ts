@@ -20,6 +20,7 @@ import { BulkCreateAssignmentsDto } from "./dto/bulk-create-assignments.dto";
 import { CreateActionAssignmentDto } from "./dto/create-action-assignment.dto";
 import { CreateActionInfluencerAssignmentDto } from "./dto/create-action-influencer-assignment.dto";
 import { QueryActionAssignmentsDto } from "./dto/query-action-assignments.dto";
+import { RequestRevisionDto } from "./dto/request-revision.dto";
 import { SubmitActionAssignmentDto } from "./dto/submit-action-assignment.dto";
 import { UpdateActionAssignmentDto } from "./dto/update-action-assignment.dto";
 
@@ -80,6 +81,22 @@ export class ActionAssignmentsController {
     return this.actionAssignmentsService.findOverdue(
       organizationId,
       search,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
+
+  @Get("action-assignments/pending-review")
+  @Roles("organization_admin", "campaign_manager")
+  findPendingReview(
+    @CurrentOrganizationId() organizationId: string,
+    @Query("campaign_id") campaignId?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.actionAssignmentsService.findPendingReview(
+      organizationId,
+      campaignId,
       Number(page) || 1,
       Number(limit) || 10,
     );
@@ -184,6 +201,32 @@ export class ActionAssignmentsController {
     @Body() dto: SubmitActionAssignmentDto,
   ) {
     return this.actionAssignmentsService.submit(organizationId, id, user, dto);
+  }
+
+  @Post("action-assignments/:id/approve")
+  @Roles("organization_admin", "campaign_manager")
+  approve(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+  ) {
+    return this.actionAssignmentsService.approve(organizationId, id, user);
+  }
+
+  @Post("action-assignments/:id/request-revision")
+  @Roles("organization_admin", "campaign_manager")
+  requestRevision(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", UuidParamPipe) id: string,
+    @Body() dto: RequestRevisionDto,
+  ) {
+    return this.actionAssignmentsService.requestRevision(
+      organizationId,
+      id,
+      user,
+      dto.reason,
+    );
   }
 
   @Post("action-assignments/:id/complete")

@@ -96,4 +96,10 @@ export const campaignsApi = {
       expected_version: expectedVersion,
     });
   },
+  invite(campaignId: string, influencerIds: string[]) {
+    return apiClient.post<{ invited: number; skipped: number }>(
+      `/campaigns/${campaignId}/invite`,
+      { influencer_ids: influencerIds },
+    );
+  },
 };

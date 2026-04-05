@@ -5,7 +5,12 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { AssignmentStatus, type Prisma } from "@prisma/client";
+
+import {
+  getInfluencerPlatforms,
+  getEligibleActions,
+} from "@influencer-manager/shared/types/mobile";
 
 import { AuditLogService } from "../../common/services/audit-log.service";
 import { assertValidStateTransition } from "../../common/utils/lifecycle.util";
@@ -25,6 +30,7 @@ export interface CascadePreview {
   influencers_to_notify: number;
   actions_with_media_in_progress: number;
   actions_without_media: number;
+  assignments_pending_review: number;
 }
 
 export interface CascadeResult {
@@ -775,6 +781,199 @@ export class CampaignsService {
     };
   }
 
+  async inviteInfluencers(
+    organizationId: string,
+    campaignId: string,
+    influencerIds: string[],
+  ): Promise<{ invited: number; skipped: number }> {
+    await this.findOne(organizationId, campaignId);
+
+    // Load campaign actions via missions
+    const missions = await this.prisma.mission.findMany({
+      where: {
+        organization_id: organizationId,
+        campaign_id: campaignId,
+      },
+      include: {
+        actions: {
+          select: {
+            id: true,
+            required_platforms: true,
+          },
+        },
+      },
+    });
+
+    const actions = missions.flatMap((m) => m.actions);
+
+    if (actions.length === 0) {
+      return { invited: 0, skipped: 0 };
+    }
+
+    // Load influencers
+    const influencers = await this.prisma.influencer.findMany({
+      where: {
+        id: { in: influencerIds },
+        organization_id: organizationId,
+      },
+      select: {
+        id: true,
+        url_instagram: true,
+        url_tiktok: true,
+        url_youtube: true,
+        url_facebook: true,
+        url_linkedin: true,
+        url_x: true,
+        url_threads: true,
+      },
+    });
+
+    // Find existing assignments to skip duplicates
+    const actionIds = actions.map((a) => a.id);
+    const existingAssignments = await this.prisma.actionAssignment.findMany({
+      where: {
+        organization_id: organizationId,
+        action_id: { in: actionIds },
+        influencer_id: { in: influencerIds },
+      },
+      select: { action_id: true, influencer_id: true },
+    });
+
+    const existingKeys = new Set(
+      existingAssignments.map((e) => `${e.action_id}:${e.influencer_id}`),
+    );
+
+    const now = new Date();
+    const toCreate: Prisma.ActionAssignmentCreateManyInput[] = [];
+
+    for (const influencer of influencers) {
+      const platforms = getInfluencerPlatforms(influencer);
+      const { eligible } = getEligibleActions(platforms, actions);
+
+      for (const action of eligible) {
+        const key = `${action.id}:${influencer.id}`;
+        if (!existingKeys.has(key)) {
+          toCreate.push({
+            organization_id: organizationId,
+            action_id: action.id,
+            influencer_id: influencer.id,
+            assignment_status: AssignmentStatus.invited,
+            invited_at: now,
+          });
+          existingKeys.add(key); // prevent duplicates within the batch
+        }
+      }
+    }
+
+    if (toCreate.length === 0) {
+      return {
+        invited: 0,
+        skipped: influencerIds.length,
+      };
+    }
+
+    const result = await this.prisma.actionAssignment.createMany({
+      data: toCreate,
+      skipDuplicates: true,
+    });
+
+    return {
+      invited: result.count,
+      skipped: existingAssignments.length,
+    };
+  }
+
+  async getInfluencerSummary(
+    organizationId: string,
+    campaignId: string,
+  ) {
+    await this.findOne(organizationId, campaignId);
+
+    // Get all assignments for this campaign
+    const assignments = await this.prisma.actionAssignment.findMany({
+      where: {
+        organization_id: organizationId,
+        action: {
+          mission: {
+            campaign_id: campaignId,
+          },
+        },
+      },
+      select: {
+        id: true,
+        assignment_status: true,
+        influencer: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    // Group by influencer
+    const byInfluencer = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        assignments: Array<{ id: string; assignment_status: string }>;
+      }
+    >();
+
+    for (const a of assignments) {
+      let entry = byInfluencer.get(a.influencer.id);
+      if (!entry) {
+        entry = {
+          id: a.influencer.id,
+          name: a.influencer.name,
+          assignments: [],
+        };
+        byInfluencer.set(a.influencer.id, entry);
+      }
+      entry.assignments.push({
+        id: a.id,
+        assignment_status: a.assignment_status,
+      });
+    }
+
+    // Status priority order (lowest progress first)
+    const statusPriority: Record<string, number> = {
+      invited: 0,
+      assigned: 1,
+      accepted: 2,
+      in_progress: 3,
+      submitted: 4,
+      revision: 5,
+      completed: 6,
+      completed_by_cascade: 7,
+      declined: 8,
+    };
+
+    const influencers = [...byInfluencer.values()].map((entry) => {
+      const completedCount = entry.assignments.filter(
+        (a) =>
+          a.assignment_status === "completed" ||
+          a.assignment_status === "completed_by_cascade",
+      ).length;
+
+      // Overall status is the lowest-progress status across assignments
+      const overallStatus = entry.assignments.reduce((lowest, a) => {
+        const currentPriority = statusPriority[a.assignment_status] ?? 99;
+        const lowestPriority = statusPriority[lowest] ?? 99;
+        return currentPriority < lowestPriority ? a.assignment_status : lowest;
+      }, entry.assignments[0]?.assignment_status ?? "invited");
+
+      return {
+        id: entry.id,
+        name: entry.name,
+        overall_status: overallStatus,
+        completed_count: completedCount,
+        total_count: entry.assignments.length,
+        assignments: entry.assignments,
+      };
+    });
+
+    return { influencers };
+  }
+
   async getCascadePreview(
     organizationId: string,
     campaignId: string,
@@ -783,13 +982,28 @@ export class CampaignsService {
 
     const scope = await this.buildCascadeScope(organizationId, campaignId);
 
+    // Count submitted + revision assignments that won't be cascaded
+    const pendingReviewCount = scope.incompleteAssignments.filter(
+      (a) =>
+        a.assignment_status === "submitted" ||
+        a.assignment_status === "revision",
+    ).length;
+
+    // Only count cascadable assignments (not submitted or revision)
+    const cascadableAssignments = scope.incompleteAssignments.filter(
+      (a) =>
+        a.assignment_status !== "submitted" &&
+        a.assignment_status !== "revision",
+    );
+
     return {
       missions_to_complete: scope.incompleteMissions.length,
       actions_to_complete: scope.incompleteActionIds.length,
-      assignments_to_close: scope.incompleteAssignments.length,
+      assignments_to_close: cascadableAssignments.length,
       influencers_to_notify: scope.uniqueInfluencerIds.length,
       actions_with_media_in_progress: scope.actionsWithMediaInProgress,
       actions_without_media: scope.actionsWithoutMedia,
+      assignments_pending_review: pendingReviewCount,
     };
   }
 
@@ -900,9 +1114,15 @@ export class CampaignsService {
         });
       }
 
-      // 4. Cascade-close assignments
-      if (scope.incompleteAssignments.length > 0) {
-        const assignmentIds = scope.incompleteAssignments.map((a) => a.id);
+      // 4. Cascade-close assignments (only invited, accepted, in_progress — leave submitted/revision untouched)
+      const cascadableAssignments = scope.incompleteAssignments.filter(
+        (a) =>
+          a.assignment_status !== "submitted" &&
+          a.assignment_status !== "revision",
+      );
+
+      if (cascadableAssignments.length > 0) {
+        const assignmentIds = cascadableAssignments.map((a) => a.id);
 
         await tx.actionAssignment.updateMany({
           where: { id: { in: assignmentIds } },
@@ -928,7 +1148,7 @@ export class CampaignsService {
             missions_updated:
               missionIdsToAutoComplete.length + naturalMissionIds.length,
             actions_updated: scope.incompleteActionIds.length,
-            assignments_updated: scope.incompleteAssignments.length,
+            assignments_updated: cascadableAssignments.length,
             influencers_affected: scope.uniqueInfluencerIds.length,
           },
         },
@@ -940,7 +1160,7 @@ export class CampaignsService {
         missions_updated:
           missionIdsToAutoComplete.length + naturalMissionIds.length,
         actions_updated: scope.incompleteActionIds.length,
-        assignments_updated: scope.incompleteAssignments.length,
+        assignments_updated: cascadableAssignments.length,
         influencers_notified: scope.uniqueInfluencerIds,
       };
     });

@@ -21,14 +21,17 @@ export const ACTION_STATUSES = [
 ] as const;
 
 export const ASSIGNMENT_STATUSES = [
+  "invited",
   "assigned",
   "accepted",
   "in_progress",
   "submitted",
+  "revision",
   "approved",
   "rejected",
   "completed",
   "completed_by_cascade",
+  "declined",
 ] as const;
 
 export const CREATOR_ASSIGNMENT_SORT_FIELDS = [
@@ -348,6 +351,12 @@ export interface ActionAssignment {
   influencer_id: string;
   assignment_status: AssignmentStatus;
   cascade_reason: string | null;
+  invited_at: string | null;
+  accepted_at: string | null;
+  submitted_at: string | null;
+  completed_at: string | null;
+  revision_count: number;
+  revision_reason: string | null;
   assigned_at: string | null;
   due_date: string | null;
   completion_date: string | null;
@@ -783,6 +792,7 @@ export interface ConversationListItem {
   subject: string;
   related_entity_type: ConversationEntityType | null;
   related_entity_id: string | null;
+  influencer_name: string | null;
   created_at: string;
   updated_at: string;
   last_message: {

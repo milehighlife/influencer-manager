@@ -11,30 +11,28 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const STATUS_STEPS = ["accepted", "in_progress", "submitted", "approved"] as const;
+const STATUS_STEPS = ["invited", "accepted", "in_progress", "submitted", "completed"] as const;
 
 function stepState(current: string, step: string): "done" | "active" | "upcoming" {
   const ci = STATUS_STEPS.indexOf(current as (typeof STATUS_STEPS)[number]);
   const si = STATUS_STEPS.indexOf(step as (typeof STATUS_STEPS)[number]);
 
-  if (ci < 0) {
-    // "assigned" or "rejected" — nothing done yet
-    if (current === "rejected") {
-      // treat as in_progress for resubmit flow
-      const rejIdx = STATUS_STEPS.indexOf("in_progress");
-      if (si < rejIdx) return "done";
-      if (si === rejIdx) return "active";
-      return "upcoming";
-    }
+  if (current === "revision") {
+    // treat revision as between submitted and completed
+    const revIdx = STATUS_STEPS.indexOf("in_progress");
+    if (si <= revIdx) return "done";
+    if (si === STATUS_STEPS.indexOf("submitted")) return "active";
     return "upcoming";
   }
+
+  if (ci < 0) return "upcoming";
   if (si < ci) return "done";
   if (si === ci) return "active";
   return "upcoming";
 }
 
 function formatDate(d: string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "\u2014";
   return new Date(d).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -282,6 +280,90 @@ function CampaignBriefSheet({
 }
 
 // ---------------------------------------------------------------------------
+// Invitation View (shown when status === 'invited')
+// ---------------------------------------------------------------------------
+
+function InvitationView({
+  assignment,
+  onAccept,
+  onDecline,
+  accepting,
+  declining,
+}: {
+  assignment: InfluencerWorkspaceAssignment;
+  onAccept: () => void;
+  onDecline: () => void;
+  accepting: boolean;
+  declining: boolean;
+}) {
+  const action = assignment.action;
+  const campaign = action.mission.campaign;
+  const totalDeliverables = action.required_deliverables || 0;
+
+  return (
+    <>
+      <div className="section">
+        <div style={{ marginBottom: 12 }}>
+          <span className="chip invitation-badge">You're Invited</span>
+        </div>
+
+        <h1 style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 700 }}>{action.title}</h1>
+
+        <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
+          {campaign.name}
+        </h2>
+        {campaign.description && (
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--color-ink-secondary)", lineHeight: 1.5 }}>
+            {campaign.description}
+          </p>
+        )}
+
+        <div className="action-card-row" style={{ marginBottom: 12 }}>
+          <span className="chip chip-neutral">{action.platform}</span>
+          {action.content_format && (
+            <span className="chip chip-neutral">{action.content_format}</span>
+          )}
+        </div>
+
+        <div style={{ fontSize: 14, color: "var(--color-ink-secondary)", marginBottom: 8 }}>
+          <span style={{ fontWeight: 600 }}>Date window: </span>
+          {formatDate(campaign.start_date)} &ndash; {formatDate(campaign.end_date)}
+        </div>
+
+        <div style={{ fontSize: 14, color: "var(--color-ink-secondary)", marginBottom: 8 }}>
+          <span style={{ fontWeight: 600 }}>Due: </span>
+          {formatDate(assignment.due_date)}
+        </div>
+
+        {totalDeliverables > 0 && (
+          <p style={{ margin: "0 0 0", fontSize: 14, color: "var(--color-ink-secondary)" }}>
+            <span style={{ fontWeight: 600 }}>Required deliverables: </span>
+            {totalDeliverables}
+          </p>
+        )}
+      </div>
+
+      <div className="fixed-cta" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <button
+          className="btn btn-primary btn-full"
+          disabled={accepting || declining}
+          onClick={onAccept}
+        >
+          {accepting ? "Accepting..." : "Accept"}
+        </button>
+        <button
+          className="btn btn-secondary btn-full"
+          disabled={accepting || declining}
+          onClick={onDecline}
+        >
+          {declining ? "Declining..." : "Decline"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -312,6 +394,15 @@ export function ActionDetailPage() {
   const acceptMutation = useMutation({
     mutationFn: () => assignmentsApi.accept(id!),
     onSuccess: invalidate,
+    onError: (err: Error) => setActionError(err.message),
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: () => assignmentsApi.decline(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      navigate("/");
+    },
     onError: (err: Error) => setActionError(err.message),
   });
 
@@ -360,6 +451,12 @@ export function ActionDetailPage() {
   const campaign = action.mission.campaign;
   const status = assignment.assignment_status;
 
+  // Cast to access new fields from the updated type
+  const assignmentAny = assignment as InfluencerWorkspaceAssignment & {
+    revision_count?: number;
+    revision_reason?: string | null;
+  };
+
   const submittedCount = deliverables.filter(
     (d) => d.status !== "pending",
   ).length;
@@ -367,6 +464,7 @@ export function ActionDetailPage() {
 
   const isBusy =
     acceptMutation.isPending ||
+    declineMutation.isPending ||
     startMutation.isPending ||
     submitMutation.isPending;
 
@@ -377,12 +475,38 @@ export function ActionDetailPage() {
   }
 
   function canSubmit(): boolean {
-    if (status !== "in_progress") return false;
+    if (status !== "in_progress" && status !== "revision") return false;
     const requiredCount = action.required_deliverables || 0;
     const filledCount = deliverables.filter((d) => d.submission_url).length;
     return filledCount >= requiredCount;
   }
 
+  // ---------- Invitation view ----------
+  if (status === "invited") {
+    return (
+      <>
+        <button className="back-btn" onClick={() => navigate("/")}>
+          &#8592; Back
+        </button>
+
+        {actionError && (
+          <p style={{ color: "var(--color-danger)", fontSize: 13, textAlign: "center", marginBottom: 12 }}>
+            {actionError}
+          </p>
+        )}
+
+        <InvitationView
+          assignment={assignment}
+          onAccept={() => acceptMutation.mutate()}
+          onDecline={() => declineMutation.mutate()}
+          accepting={acceptMutation.isPending}
+          declining={declineMutation.isPending}
+        />
+      </>
+    );
+  }
+
+  // ---------- Standard detail view ----------
   return (
     <>
       <button className="back-btn" onClick={() => navigate("/")}>
@@ -391,6 +515,18 @@ export function ActionDetailPage() {
 
       {/* Progress */}
       <ProgressBar status={status} />
+
+      {/* Revision Banner */}
+      {status === "revision" && assignmentAny.revision_reason && (
+        <div className="revision-banner">
+          <p>
+            Revision Requested (Revision #{assignmentAny.revision_count ?? 1}):
+          </p>
+          <p style={{ fontWeight: 400, marginTop: 4 }}>
+            {assignmentAny.revision_reason}
+          </p>
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="section">
@@ -467,16 +603,6 @@ export function ActionDetailPage() {
 
       {/* Fixed CTA */}
       <div className="fixed-cta">
-        {status === "assigned" && (
-          <button
-            className="btn btn-primary btn-full"
-            disabled={isBusy}
-            onClick={() => acceptMutation.mutate()}
-          >
-            {acceptMutation.isPending ? "Accepting..." : "Accept Assignment"}
-          </button>
-        )}
-
         {status === "accepted" && (
           <button
             className="btn btn-primary btn-full"
@@ -503,20 +629,33 @@ export function ActionDetailPage() {
           </div>
         )}
 
-        {status === "approved" && (
-          <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "14px 0", fontSize: 15 }}>
-            Approved
-          </div>
-        )}
-
-        {status === "rejected" && (
+        {status === "revision" && (
           <button
             className="btn btn-primary btn-full"
-            disabled={isBusy}
+            disabled={isBusy || !canSubmit()}
             onClick={() => submitMutation.mutate()}
           >
             {submitMutation.isPending ? "Resubmitting..." : "Resubmit"}
           </button>
+        )}
+
+        {status === "completed" && (
+          <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "14px 0", fontSize: 15, gap: 6 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Completed
+          </div>
+        )}
+
+        {/* Legacy: approved still shows for backward compat */}
+        {status === "approved" && (
+          <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "14px 0", fontSize: 15, gap: 6 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Completed
+          </div>
         )}
       </div>
 

@@ -93,6 +93,27 @@ export const actionAssignmentsApi = {
       },
     );
   },
+  getPendingReview(params: { search?: string; page?: number; limit?: number } = {}) {
+    return apiClient.get<PaginatedActionList>(
+      "/action-assignments/pending-review",
+      {
+        search: params.search,
+        page: params.page,
+        limit: params.limit,
+      },
+    );
+  },
+  approve(assignmentId: string) {
+    return apiClient.post<ActionAssignment>(
+      `/action-assignments/${assignmentId}/approve`,
+    );
+  },
+  requestRevision(assignmentId: string, reason: string) {
+    return apiClient.post<ActionAssignment>(
+      `/action-assignments/${assignmentId}/request-revision`,
+      { reason },
+    );
+  },
 };
 
 export interface PaginatedActionList {

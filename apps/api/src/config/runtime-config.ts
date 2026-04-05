@@ -144,7 +144,7 @@ export function loadRuntimeConfig(
     corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
       ? env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
       : nodeEnv === "development" || nodeEnv === "test"
-        ? ["http://localhost:5173", "http://localhost:3000"]
+        ? ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
         : [],
   };
 

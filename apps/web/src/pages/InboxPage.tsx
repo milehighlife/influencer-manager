@@ -26,6 +26,20 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max) + "...";
 }
 
+function formatInboxDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (isToday) {
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  }
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 type InboxFilter = "all" | "unread" | "needs_reply" | "sent_by_me" | "archived";
 
 const FILTER_OPTIONS: { value: InboxFilter; label: string }[] = [
@@ -392,7 +406,7 @@ export function InboxPage() {
         ) : null}
         {!isLoading && !isError && items.length > 0 ? (
           <>
-            <table className="data-table">
+            <table className="data-table" style={{ fontSize: 13 }}>
               <thead>
                 <tr>
                   <th style={{ width: 32 }}>
@@ -410,7 +424,7 @@ export function InboxPage() {
                     />
                   </th>
                   <th>Subject</th>
-                  <th>Last Message</th>
+                  <th>From</th>
                   <th>Date</th>
                   <th style={{ width: 80 }}></th>
                 </tr>
@@ -466,16 +480,11 @@ export function InboxPage() {
                         </Link>
                       </span>
                     </td>
-                    <td>
-                      {conversation.last_message
-                        ? truncate(conversation.last_message.body, 80)
-                        : <span className="muted">No messages</span>}
-                    </td>
-                    <td>
-                      {formatDate(
+                    <td>{conversation.influencer_name ?? "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {formatInboxDate(
                         conversation.last_message?.created_at ??
                           conversation.updated_at,
-                        { mode: "datetime" },
                       )}
                     </td>
                     <td>
