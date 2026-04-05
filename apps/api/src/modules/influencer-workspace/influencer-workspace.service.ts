@@ -1039,6 +1039,69 @@ export class InfluencerWorkspaceService {
     };
   }
 
+  async getProfile(organizationId: string, user: AuthenticatedUser) {
+    const influencerId = this.getRequiredInfluencerId(user);
+    const influencer = await this.prisma.influencer.findFirst({
+      where: { id: influencerId, organization_id: organizationId },
+      include: {
+        influencer_clients: {
+          include: { client: { select: { name: true } } },
+        },
+      },
+    });
+
+    if (!influencer) {
+      throw new NotFoundException("Influencer profile not found.");
+    }
+
+    // Get rating average
+    const ratings = await this.prisma.influencerRating.findMany({
+      where: {
+        organization_id: organizationId,
+        influencer_id: influencerId,
+        visual_quality_score: { not: null },
+        script_quality_score: { not: null },
+        overall_quality_score: { not: null },
+      },
+      select: {
+        visual_quality_score: true,
+        script_quality_score: true,
+        overall_quality_score: true,
+      },
+    });
+
+    let ratingAverage: number | null = null;
+    if (ratings.length > 0) {
+      const sum = ratings.reduce(
+        (acc, r) =>
+          acc +
+          (r.visual_quality_score! + r.script_quality_score! + r.overall_quality_score!) / 3,
+        0,
+      );
+      ratingAverage = Math.round((sum / ratings.length) * 10) / 10;
+    }
+
+    return {
+      id: influencer.id,
+      name: influencer.name,
+      email: influencer.email,
+      phone: influencer.phone,
+      city: influencer.city,
+      state: influencer.state,
+      primary_platform: influencer.primary_platform,
+      url_instagram: influencer.url_instagram,
+      url_tiktok: influencer.url_tiktok,
+      url_youtube: influencer.url_youtube,
+      url_facebook: influencer.url_facebook,
+      url_x: influencer.url_x,
+      url_linkedin: influencer.url_linkedin,
+      url_threads: influencer.url_threads,
+      status: influencer.status,
+      rating_average: ratingAverage,
+      clients: influencer.influencer_clients.map((ic) => ic.client.name),
+    };
+  }
+
   async getAssignmentCampaignAssets(
     organizationId: string,
     user: AuthenticatedUser,

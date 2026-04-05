@@ -143,6 +143,14 @@ export class InfluencerWorkspaceController {
     );
   }
 
+  @Get("profile")
+  getProfile(
+    @CurrentOrganizationId() organizationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.influencerWorkspaceService.getProfile(organizationId, user);
+  }
+
   @Get("assignments/:id/campaign-assets")
   getAssignmentCampaignAssets(
     @CurrentOrganizationId() organizationId: string,
