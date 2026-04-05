@@ -15,6 +15,7 @@ interface AssetUploadZoneProps {
     file_size_bytes: number;
     mime_type: string;
     category: string;
+    thumbnail_url?: string;
   }) => Promise<void>;
 }
 
@@ -44,14 +45,46 @@ export function AssetUploadZone({ onCreate }: AssetUploadZoneProps) {
         });
 
         try {
+          const fileUrl = `/uploads/placeholder/${encodeURIComponent(file.name)}`;
+
+          // Generate a small thumbnail for images
+          let thumbnailUrl: string | undefined;
+          if (file.type.startsWith("image/")) {
+            try {
+              thumbnailUrl = await new Promise<string>((resolve, reject) => {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                  const canvas = document.createElement("canvas");
+                  const maxSize = 200;
+                  const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+                  canvas.width = img.width * scale;
+                  canvas.height = img.height * scale;
+                  const ctx = canvas.getContext("2d");
+                  ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  URL.revokeObjectURL(objectUrl);
+                  resolve(canvas.toDataURL("image/jpeg", 0.7));
+                };
+                img.onerror = () => {
+                  URL.revokeObjectURL(objectUrl);
+                  reject(new Error("Failed to load image"));
+                };
+                img.src = objectUrl;
+              });
+            } catch {
+              // Ignore thumbnail generation failure
+            }
+          }
+
           await onCreate({
             name: file.name,
             source_type: "upload",
-            file_url: `/uploads/placeholder/${file.name}`,
+            file_url: fileUrl,
             file_name: file.name,
             file_size_bytes: file.size,
             mime_type: file.type,
             category: "other",
+            thumbnail_url: thumbnailUrl,
           });
 
           setUploads((prev) => {

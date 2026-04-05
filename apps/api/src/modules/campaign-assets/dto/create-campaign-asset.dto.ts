@@ -24,7 +24,7 @@ export class CreateCampaignAssetDto {
   @IsEnum(AssetSourceType)
   source_type!: AssetSourceType;
 
-  @IsUrl()
+  @IsString()
   file_url!: string;
 
   @IsOptional()
@@ -42,6 +42,10 @@ export class CreateCampaignAssetDto {
   @IsString()
   @MaxLength(100)
   mime_type?: string;
+
+  @IsOptional()
+  @IsString()
+  thumbnail_url?: string;
 
   @IsOptional()
   @IsEnum(AssetCategory)

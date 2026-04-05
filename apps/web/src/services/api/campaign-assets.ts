@@ -15,6 +15,7 @@ export interface CreateAssetPayload {
   file_name?: string;
   file_size_bytes?: number;
   mime_type?: string;
+  thumbnail_url?: string;
   category?: string;
   tags?: string[];
 }
@@ -41,7 +42,7 @@ export const campaignAssetsApi = {
         }
       }
     }
-    return apiClient.get<CampaignAssetRecord[]>(`/campaigns/${campaignId}/assets`, query);
+    return apiClient.get<PaginatedResponse<CampaignAssetRecord>>(`/campaigns/${campaignId}/assets`, query);
   },
 
   create(campaignId: string, payload: CreateAssetPayload) {

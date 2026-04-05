@@ -46,6 +46,8 @@ function formatShortDate(value: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -62,133 +64,268 @@ function getDomainLabel(url: string) {
   }
 }
 
-function SourceIndicator({ asset }: { asset: CampaignAssetRecord }) {
-  if (asset.source_type === "external_link") {
-    return <span title={asset.file_url}>[link] {getDomainLabel(asset.file_url)}</span>;
-  }
-  return <span>Upload</span>;
+function getAssetImageSrc(asset: CampaignAssetRecord): string | null {
+  if (asset.thumbnail_url) return asset.thumbnail_url;
+  const isImage = asset.mime_type?.startsWith("image/");
+  const hasRenderableUrl = asset.file_url.startsWith("data:") || asset.file_url.startsWith("http");
+  if (isImage && hasRenderableUrl) return asset.file_url;
+  return null;
 }
 
-function AssetThumbnail({ asset, size = 80 }: { asset: CampaignAssetRecord; size?: number }) {
-  const isImage = asset.mime_type?.startsWith("image/");
-  const isVideo = asset.mime_type?.startsWith("video/");
+function getAssetIcon(asset: CampaignAssetRecord): string {
+  if (asset.source_type === "external_link") return "🔗";
+  if (asset.mime_type?.startsWith("image/")) return "🖼️";
+  if (asset.mime_type?.startsWith("video/")) return "🎬";
+  if (asset.mime_type?.includes("pdf")) return "📑";
+  if (asset.mime_type?.includes("zip") || asset.mime_type?.includes("compressed")) return "📦";
+  return "📄";
+}
 
-  if (asset.thumbnail_url) {
-    return (
-      <img
-        src={asset.thumbnail_url}
-        alt={asset.name}
-        style={{ width: size, height: size, objectFit: "cover", borderRadius: 4 }}
-      />
-    );
+function AssetThumbnail({ asset }: { asset: CampaignAssetRecord }) {
+  const src = getAssetImageSrc(asset);
+  if (src) {
+    return <img src={src} alt={asset.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
   }
-
-  if (isImage && asset.source_type === "upload") {
-    return (
-      <img
-        src={asset.file_url}
-        alt={asset.name}
-        style={{ width: size, height: size, objectFit: "cover", borderRadius: 4 }}
-      />
-    );
-  }
-
-  const iconLabel =
-    asset.source_type === "external_link"
-      ? "[link]"
-      : isVideo
-        ? "[vid]"
-        : "[file]";
-
   return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "var(--surface-secondary, #f3f4f6)",
-        borderRadius: 4,
-        fontSize: size > 50 ? 14 : 11,
-        color: "var(--text-muted, #6b7280)",
-      }}
-    >
-      {iconLabel}
+    <div className="media-card-thumb">
+      <span style={{ fontSize: 40 }}>{getAssetIcon(asset)}</span>
     </div>
   );
 }
 
-function AssetGridCard({
+function AssetThumbnailSmall({ asset }: { asset: CampaignAssetRecord }) {
+  const src = getAssetImageSrc(asset);
+  if (src) {
+    return <img src={src} alt={asset.name} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />;
+  }
+  return (
+    <div style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-subtle)", borderRadius: 4, fontSize: 18 }}>
+      {getAssetIcon(asset)}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Asset Detail Preview Dialog
+// ---------------------------------------------------------------------------
+
+function AssetPreviewDialog({
   asset,
   isReadOnly,
+  onClose,
   onEdit,
   onDelete,
 }: {
   asset: CampaignAssetRecord;
   isReadOnly: boolean;
+  onClose: () => void;
   onEdit?: (asset: CampaignAssetRecord) => void;
   onDelete?: (asset: CampaignAssetRecord) => void;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const imageSrc = getAssetImageSrc(asset);
+  const isExternal = asset.source_type === "external_link";
+
+  function handleDownload() {
+    if (isExternal || !imageSrc) {
+      window.open(asset.file_url, "_blank");
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = imageSrc;
+    a.download = asset.file_name ?? asset.name;
+    a.click();
+  }
+
+  function handleShare() {
+    const text = `${asset.name}${asset.description ? " — " + asset.description : ""}`;
+    if (navigator.share) {
+      void navigator.share({ title: asset.name, text, url: isExternal ? asset.file_url : undefined });
+    } else {
+      void navigator.clipboard.writeText(isExternal ? asset.file_url : text);
+      // Simple feedback — clipboard copy
+    }
+  }
+
+  function handleDeleteConfirm() {
+    onDelete?.(asset);
+    onClose();
+  }
+
   return (
-    <div className="panel" style={{ padding: 12 }}>
-      <div style={{ display: "flex", gap: 12 }}>
-        <a
-          href={asset.file_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ flexShrink: 0 }}
-        >
-          <AssetThumbnail asset={asset} size={80} />
-        </a>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <a
-            href={asset.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontWeight: 600, wordBreak: "break-word" }}
-          >
-            {asset.name}
-          </a>
-          <div style={{ marginTop: 4 }}>
-            <StatusBadge label={formatCategory(asset.category)} tone={categoryTone(asset.category)} />
-          </div>
-          {asset.tags.length > 0 ? (
-            <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {asset.tags.map((tag) => (
-                <span key={tag} className="badge badge-neutral" style={{ fontSize: 11 }}>
-                  {tag}
-                </span>
-              ))}
+    <div className="confirm-overlay" onClick={onClose}>
+      <div
+        className="asset-preview-dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="asset-preview-layout">
+          {/* Left: metadata sidebar */}
+          <div className="asset-preview-sidebar">
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, wordBreak: "break-word" }}>
+              {asset.name}
+            </h3>
+
+            {asset.description ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">Description</span>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--color-ink-secondary)" }}>
+                  {asset.description}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="asset-preview-field">
+              <span className="asset-preview-label">Category</span>
+              <StatusBadge label={formatCategory(asset.category)} tone={categoryTone(asset.category)} />
             </div>
-          ) : null}
-          <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
-            <SourceIndicator asset={asset} />
-            {asset.file_size_bytes ? ` · ${formatFileSize(asset.file_size_bytes)}` : null}
+
+            <div className="asset-preview-field">
+              <span className="asset-preview-label">Source</span>
+              <span style={{ fontSize: 13 }}>
+                {isExternal ? `External — ${getDomainLabel(asset.file_url)}` : "Upload"}
+              </span>
+            </div>
+
+            {asset.file_name ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">File name</span>
+                <span style={{ fontSize: 13, wordBreak: "break-all" }}>{asset.file_name}</span>
+              </div>
+            ) : null}
+
+            {asset.mime_type ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">Type</span>
+                <span style={{ fontSize: 13 }}>{asset.mime_type}</span>
+              </div>
+            ) : null}
+
+            {asset.file_size_bytes ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">Size</span>
+                <span style={{ fontSize: 13 }}>{formatFileSize(asset.file_size_bytes)}</span>
+              </div>
+            ) : null}
+
+            {asset.tags.length > 0 ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">Tags</span>
+                <div className="media-card-tags">
+                  {asset.tags.map((tag) => (
+                    <span key={tag} className="media-tag">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="asset-preview-field">
+              <span className="asset-preview-label">Uploaded</span>
+              <span style={{ fontSize: 13 }}>{formatShortDate(asset.created_at)}</span>
+            </div>
+
+            {asset.uploaded_by_name ? (
+              <div className="asset-preview-field">
+                <span className="asset-preview-label">By</span>
+                <span style={{ fontSize: 13 }}>{asset.uploaded_by_name}</span>
+              </div>
+            ) : null}
+
+            {/* Actions */}
+            <div className="asset-preview-actions">
+              <button className="primary-button" type="button" onClick={handleDownload}>
+                {isExternal ? "Open Link" : "Download"}
+              </button>
+              <button className="secondary-button" type="button" onClick={handleShare}>
+                Share
+              </button>
+              {!isReadOnly && onDelete ? (
+                confirmDelete ? (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button className="danger-button" type="button" onClick={handleDeleteConfirm}>
+                      Confirm
+                    </button>
+                    <button className="secondary-button" type="button" onClick={() => setConfirmDelete(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button className="danger-button" type="button" onClick={() => setConfirmDelete(true)}>
+                    Delete
+                  </button>
+                )
+              ) : null}
+              {!isReadOnly && onEdit ? (
+                <button className="secondary-button" type="button" onClick={() => { onEdit(asset); onClose(); }}>
+                  Edit
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Right: image preview */}
+          <div className="asset-preview-image">
+            {imageSrc ? (
+              <div className="asset-preview-image-frame">
+                <img src={imageSrc} alt={asset.name} />
+              </div>
+            ) : (
+              <div className="asset-preview-image-frame asset-preview-icon-frame">
+                <span style={{ fontSize: 80 }}>{getAssetIcon(asset)}</span>
+              </div>
+            )}
           </div>
         </div>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={onClose}
+          style={{ position: "absolute", top: 12, right: 12, fontSize: 18, padding: "2px 8px", lineHeight: 1 }}
+        >
+          &times;
+        </button>
       </div>
-      {!isReadOnly ? (
-        <div className="inline-actions" style={{ marginTop: 8 }}>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => onEdit?.(asset)}
-          >
-            Edit
-          </button>
-          <button
-            className="danger-button"
-            type="button"
-            onClick={() => onDelete?.(asset)}
-          >
-            Delete
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Grid Card
+// ---------------------------------------------------------------------------
+
+function AssetGridCard({
+  asset,
+  onClick,
+}: {
+  asset: CampaignAssetRecord;
+  onClick: () => void;
+}) {
+  return (
+    <div className="media-card" onClick={onClick}>
+      <div className="media-card-thumb">
+        <AssetThumbnail asset={asset} />
+      </div>
+      <div className="media-card-body">
+        <p className="media-card-name">{asset.name}</p>
+        <div className="media-card-meta">
+          <StatusBadge label={formatCategory(asset.category)} tone={categoryTone(asset.category)} />
+          {asset.file_size_bytes ? <span>{formatFileSize(asset.file_size_bytes)}</span> : null}
+        </div>
+        {asset.tags.length > 0 ? (
+          <div className="media-card-tags">
+            {asset.tags.map((tag) => (
+              <span key={tag} className="media-tag">{tag}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MediaLibrary
+// ---------------------------------------------------------------------------
 
 interface MediaLibraryProps {
   assets: CampaignAssetRecord[];
@@ -214,18 +351,7 @@ export function MediaLibrary({
   onDelete,
 }: MediaLibraryProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [confirmDeleteAsset, setConfirmDeleteAsset] = useState<CampaignAssetRecord | null>(null);
-
-  function handleDeleteClick(asset: CampaignAssetRecord) {
-    setConfirmDeleteAsset(asset);
-  }
-
-  function handleDeleteConfirm() {
-    if (confirmDeleteAsset) {
-      onDelete?.(confirmDeleteAsset);
-      setConfirmDeleteAsset(null);
-    }
-  }
+  const [previewAsset, setPreviewAsset] = useState<CampaignAssetRecord | null>(null);
 
   if (isLoading) {
     return <p className="muted">Loading assets...</p>;
@@ -242,21 +368,23 @@ export function MediaLibrary({
 
   return (
     <>
-      <div className="inline-actions" style={{ marginBottom: 12 }}>
-        <button
-          className={viewMode === "grid" ? "primary-button" : "secondary-button"}
-          type="button"
-          onClick={() => setViewMode("grid")}
-        >
-          Grid
-        </button>
-        <button
-          className={viewMode === "list" ? "primary-button" : "secondary-button"}
-          type="button"
-          onClick={() => setViewMode("list")}
-        >
-          List
-        </button>
+      <div className="media-toolbar">
+        <div className="view-toggle">
+          <button
+            className={viewMode === "grid" ? "view-toggle-active" : ""}
+            type="button"
+            onClick={() => setViewMode("grid")}
+          >
+            Grid
+          </button>
+          <button
+            className={viewMode === "list" ? "view-toggle-active" : ""}
+            type="button"
+            onClick={() => setViewMode("list")}
+          >
+            List
+          </button>
+        </div>
         {onRefresh ? (
           <button className="secondary-button" type="button" onClick={onRefresh}>
             Refresh
@@ -265,20 +393,12 @@ export function MediaLibrary({
       </div>
 
       {viewMode === "grid" ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 12,
-          }}
-        >
+        <div className="media-grid">
           {assets.map((asset) => (
             <AssetGridCard
               key={asset.id}
               asset={asset}
-              isReadOnly={isReadOnly}
-              onEdit={onEdit}
-              onDelete={handleDeleteClick}
+              onClick={() => setPreviewAsset(asset)}
             />
           ))}
         </div>
@@ -294,54 +414,39 @@ export function MediaLibrary({
               <th>Source</th>
               <th>Size</th>
               <th>Date</th>
-              {!isReadOnly ? <th></th> : null}
               {campaignId == null && showCampaignName ? <th></th> : null}
             </tr>
           </thead>
           <tbody>
             {assets.map((asset) => (
-              <tr key={asset.id}>
+              <tr
+                key={asset.id}
+                style={{ cursor: "pointer" }}
+                onClick={() => setPreviewAsset(asset)}
+              >
                 <td>
-                  <a href={asset.file_url} target="_blank" rel="noopener noreferrer">
-                    <AssetThumbnail asset={asset} size={40} />
-                  </a>
+                  <AssetThumbnailSmall asset={asset} />
                 </td>
-                <td>
-                  <a href={asset.file_url} target="_blank" rel="noopener noreferrer">
-                    <strong>{asset.name}</strong>
-                  </a>
-                </td>
+                <td><strong>{asset.name}</strong></td>
                 {showCampaignName ? <td>{asset.campaign_name ?? "—"}</td> : null}
                 {showCompanyName ? <td>{asset.company_name ?? "—"}</td> : null}
                 <td>
                   <StatusBadge label={formatCategory(asset.category)} tone={categoryTone(asset.category)} />
                 </td>
-                <td><SourceIndicator asset={asset} /></td>
-                <td>{formatFileSize(asset.file_size_bytes)}</td>
-                <td>{formatShortDate(asset.created_at)}</td>
-                {!isReadOnly ? (
-                  <td>
-                    <div className="inline-actions">
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() => onEdit?.(asset)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="danger-button"
-                        type="button"
-                        onClick={() => handleDeleteClick(asset)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                ) : null}
+                <td style={{ fontSize: 13 }}>
+                  {asset.source_type === "external_link"
+                    ? getDomainLabel(asset.file_url)
+                    : "Upload"}
+                </td>
+                <td style={{ fontSize: 13 }}>{formatFileSize(asset.file_size_bytes)}</td>
+                <td style={{ fontSize: 13 }}>{formatShortDate(asset.created_at)}</td>
                 {campaignId == null && showCampaignName ? (
                   <td>
-                    <Link className="secondary-button" to={`/campaigns/${asset.campaign_id}`}>
+                    <Link
+                      className="secondary-button"
+                      to={`/campaigns/${asset.campaign_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       View in Campaign
                     </Link>
                   </td>
@@ -352,32 +457,14 @@ export function MediaLibrary({
         </table>
       )}
 
-      {confirmDeleteAsset ? (
-        <div className="confirm-overlay" onClick={() => setConfirmDeleteAsset(null)}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Delete asset</h3>
-            <p>
-              Are you sure you want to delete <strong>{confirmDeleteAsset.name}</strong>?
-              This action cannot be undone.
-            </p>
-            <div className="inline-actions" style={{ marginTop: 16 }}>
-              <button
-                className="danger-button"
-                type="button"
-                onClick={handleDeleteConfirm}
-              >
-                Delete
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setConfirmDeleteAsset(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      {previewAsset ? (
+        <AssetPreviewDialog
+          asset={previewAsset}
+          isReadOnly={isReadOnly}
+          onClose={() => setPreviewAsset(null)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       ) : null}
     </>
   );

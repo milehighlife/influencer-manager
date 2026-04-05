@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Component, lazy, Suspense } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import {
   INFLUENCER_ROLES,
@@ -34,6 +35,27 @@ const InboxPage = lazy(() => import("./pages/InboxPage").then((m) => ({ default:
 const ClientMediaLibraryPage = lazy(() => import("./pages/ClientMediaLibraryPage").then((m) => ({ default: m.ClientMediaLibraryPage })));
 const ConversationPage = lazy(() => import("./pages/ConversationPage").then((m) => ({ default: m.ConversationPage })));
 
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("React crash:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, fontFamily: "monospace" }}>
+          <h2 style={{ color: "red" }}>Something went wrong</h2>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{this.state.error.message}</pre>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, color: "#666" }}>{this.state.error.stack}</pre>
+          <button onClick={() => this.setState({ error: null })} style={{ marginTop: 12 }}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function PageFallback() {
   return <p className="muted" style={{ padding: 32 }}>Loading...</p>;
 }
@@ -58,6 +80,7 @@ function AppRoutes() {
   const isReadOnly = READ_ONLY_ROLES.includes(user.role as (typeof READ_ONLY_ROLES)[number]);
 
   return (
+    <ErrorBoundary>
     <AppShell user={user} canPlan={canPlan} isReadOnly={isReadOnly}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
@@ -139,6 +162,7 @@ function AppRoutes() {
         </Routes>
       </Suspense>
     </AppShell>
+    </ErrorBoundary>
   );
 }
 

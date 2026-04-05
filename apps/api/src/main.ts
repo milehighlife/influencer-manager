@@ -19,6 +19,10 @@ async function bootstrap() {
   });
 
   app.use(cookieParser());
+
+  // Increase JSON body size limit for asset thumbnail data URLs
+  const bodyParser = await import("body-parser");
+  app.use(bodyParser.json({ limit: "1mb" }));
   app.enableShutdownHooks();
   app.setGlobalPrefix(config.apiBasePath);
   app.useGlobalFilters(new GlobalExceptionFilter());

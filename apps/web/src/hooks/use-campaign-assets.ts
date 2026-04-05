@@ -21,7 +21,8 @@ export function useCampaignAssets(campaignId?: string) {
   });
 
   return {
-    assets: query.data ?? [],
+    assets: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
     isLoading: query.isLoading,
     isError: query.isError,
     query,

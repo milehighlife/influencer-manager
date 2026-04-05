@@ -1887,7 +1887,7 @@ function CampaignMediaSection({
   canPlan,
 }: {
   campaignId: string;
-  campaignStatus: CampaignStatus;
+  campaignStatus: string;
   canPlan: boolean;
 }) {
   const { assets, isLoading, query } = useCampaignAssets(campaignId);
@@ -1908,6 +1908,7 @@ function CampaignMediaSection({
     file_size_bytes: number;
     mime_type: string;
     category: string;
+    thumbnail_url?: string;
   }) {
     await createMutation.mutateAsync(payload);
   }

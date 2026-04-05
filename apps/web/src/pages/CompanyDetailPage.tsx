@@ -3,11 +3,15 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Company } from "@influencer-manager/shared/types/mobile";
 
+import { AddExternalLinkDialog } from "../components/AddExternalLinkDialog";
+import { AssetUploadZone } from "../components/AssetUploadZone";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { MediaLibrary } from "../components/MediaLibrary";
 import { PageSection } from "../components/PageSection";
 import { PriorityRegionMap } from "../components/PriorityRegionMap";
-import { companiesApi, influencersApi, type UpdateCompanyPayload } from "../services/api";
+import { useClientAssets } from "../hooks/use-campaign-assets";
+import { companiesApi, influencersApi, campaignAssetsApi, type UpdateCompanyPayload } from "../services/api";
 import { useAuthStore } from "../state/auth-store";
 
 const PLATFORM_FIELDS = [
@@ -447,6 +451,123 @@ function CompanyEditor({ company }: { company: Company }) {
       </PageSection>
 
       <CompanyInfluencersSection companyId={company.id} />
+
+      <CompanyMediaSection clientId={company.client_id} companyId={company.id} />
     </>
+  );
+}
+
+function CompanyMediaSection({
+  clientId,
+  companyId,
+}: {
+  clientId: string;
+  companyId: string;
+}) {
+  const { assets, isLoading, query } = useClientAssets(clientId, {
+    company_id: companyId,
+    limit: 100,
+  });
+  const queryClient = useQueryClient();
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [uploadCampaignId, setUploadCampaignId] = useState("");
+
+  // We need a campaign ID to create assets — fetch campaigns for this company
+  const campaignsQuery = useQuery({
+    queryKey: ["web", "company-campaigns", companyId],
+    queryFn: () =>
+      companiesApi.get(companyId).then(async (co) => {
+        const { campaignsApi } = await import("../services/api/campaigns");
+        const res = await campaignsApi.listPlanner({
+          company_id: companyId,
+          limit: 100,
+        });
+        return res.data;
+      }),
+  });
+  const campaigns = campaignsQuery.data ?? [];
+
+  const selectedCampaignId = uploadCampaignId || (campaigns.length > 0 ? campaigns[0].id : "");
+
+  async function handleUploadCreate(payload: {
+    name: string;
+    source_type: string;
+    file_url: string;
+    file_name: string;
+    file_size_bytes: number;
+    mime_type: string;
+    category: string;
+    thumbnail_url?: string;
+  }) {
+    if (!selectedCampaignId) return;
+    await campaignAssetsApi.create(selectedCampaignId, payload);
+    await queryClient.invalidateQueries({ queryKey: ["web", "client-assets"] });
+  }
+
+  function handleLinkSubmit(payload: {
+    name: string;
+    description?: string;
+    source_type: string;
+    file_url: string;
+    category: string;
+    tags: string[];
+  }) {
+    if (!selectedCampaignId) return;
+    campaignAssetsApi.create(selectedCampaignId, payload).then(() => {
+      setShowLinkDialog(false);
+      void queryClient.invalidateQueries({ queryKey: ["web", "client-assets"] });
+    });
+  }
+
+  async function handleDelete(asset: { id: string; campaign_id: string }) {
+    await campaignAssetsApi.remove(asset.campaign_id, asset.id);
+    await queryClient.invalidateQueries({ queryKey: ["web", "client-assets"] });
+  }
+
+  return (
+    <PageSection eyebrow="Assets" title="Media">
+      <div style={{ marginBottom: 16 }}>
+        {campaigns.length > 1 ? (
+          <label className="field" style={{ maxWidth: 300, marginBottom: 12 }}>
+            <span>Upload to campaign</span>
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setUploadCampaignId(e.target.value)}
+            >
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <AssetUploadZone onCreate={handleUploadCreate} />
+        <div style={{ marginTop: 8 }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setShowLinkDialog(true)}
+          >
+            Add External Link
+          </button>
+        </div>
+      </div>
+
+      <MediaLibrary
+        assets={assets}
+        isLoading={isLoading}
+        isReadOnly={false}
+        showCampaignName
+        onRefresh={() => { void query.refetch(); }}
+        onDelete={handleDelete}
+      />
+
+      {showLinkDialog ? (
+        <AddExternalLinkDialog
+          onSubmit={handleLinkSubmit}
+          onClose={() => setShowLinkDialog(false)}
+          isPending={false}
+        />
+      ) : null}
+    </PageSection>
   );
 }
