@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd ../.. && npm ci && npm run db:generate && npm run build --workspace @influencer-manager/web"
+watchPatterns = ["apps/web/**", "packages/**"]
+
+[deploy]
+startCommand = "npx serve -s apps/web/dist -l $PORT"

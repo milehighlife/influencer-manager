@@ -38,6 +38,11 @@ export interface BulkAssignmentResult {
 }
 
 export const actionAssignmentsApi = {
+  get(assignmentId: string) {
+    return apiClient.get<ActionAssignment & { deliverables?: Array<{ id: string; description: string | null; submission_url: string | null; status: string; submitted_at: string | null; approved_at: string | null; rejection_reason: string | null; submitted_by_user?: { full_name: string } | null; reviewed_by_user?: { full_name: string } | null; reviewed_at: string | null }> }>(
+      `/action-assignments/${assignmentId}`,
+    );
+  },
   listByAction(actionId: string) {
     return apiClient.get<ActionAssignmentsResponse>(`/actions/${actionId}/assignments`);
   },

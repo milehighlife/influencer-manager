@@ -27,7 +27,7 @@ const lifecycleTransitions = {
     assigned: ["accepted"],
     accepted: ["in_progress"],
     in_progress: ["submitted"],
-    submitted: ["completed", "revision"],
+    submitted: ["approved", "completed", "revision"],
     revision: ["submitted"],
     approved: ["completed"],
     rejected: ["in_progress"],

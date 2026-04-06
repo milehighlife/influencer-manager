@@ -209,6 +209,27 @@ export class ActionAssignmentsService {
   async findOne(organizationId: string, id: string) {
     const assignment = await this.prisma.actionAssignment.findFirst({
       where: { id, organization_id: organizationId },
+      include: {
+        deliverables: {
+          select: {
+            id: true,
+            deliverable_type: true,
+            description: true,
+            submission_url: true,
+            status: true,
+            submitted_at: true,
+            approved_at: true,
+            rejection_reason: true,
+            submitted_by_user: {
+              select: { full_name: true },
+            },
+            reviewed_by_user: {
+              select: { full_name: true },
+            },
+          },
+          orderBy: { created_at: "desc" },
+        },
+      },
     });
 
     if (!assignment) {
@@ -364,28 +385,22 @@ export class ActionAssignmentsService {
         throw new NotFoundException("Action assignment not found.");
       }
 
-      assertValidStateTransition(
-        "action_assignment",
-        assignment.assignment_status,
-        AssignmentStatus.submitted,
-      );
+      // Allow bonus submissions from approved/completed without status change
+      const isBonusSubmission =
+        assignment.assignment_status === AssignmentStatus.approved ||
+        assignment.assignment_status === AssignmentStatus.completed;
 
-      const activeDeliverableCount = await tx.deliverable.count({
-        where: {
-          organization_id: organizationId,
-          action_assignment_id: id,
-          status: {
-            in: [...ActionAssignmentsService.ACTIVE_DELIVERABLE_STATUSES],
-          },
-        },
-      });
+      if (!isBonusSubmission) {
+        assertValidStateTransition(
+          "action_assignment",
+          assignment.assignment_status,
+          AssignmentStatus.submitted,
+        );
+      }
 
-      const nextSubmittedCount =
-        activeDeliverableCount + dto.deliverables.length;
-
-      if (nextSubmittedCount !== assignment.deliverable_count_expected) {
+      if (dto.deliverables.length === 0) {
         throw new BadRequestException(
-          `Assignment requires exactly ${assignment.deliverable_count_expected} submitted deliverables before review.`,
+          "At least one deliverable is required to submit.",
         );
       }
 
@@ -431,16 +446,25 @@ export class ActionAssignmentsService {
         );
       }
 
-      // Save the first deliverable URL to the assignment for easy access
-      const firstUrl = deliverables.find((d) => d.submission_url)?.submission_url ?? null;
+      // Total submitted count across all submissions
+      const totalSubmitted = await tx.deliverable.count({
+        where: {
+          organization_id: organizationId,
+          action_assignment_id: id,
+        },
+      });
+
+      // Save the latest URL to the assignment for easy access
+      const latestUrl = deliverables.find((d) => d.submission_url)?.submission_url ?? null;
 
       const updatedAssignment = await tx.actionAssignment.update({
         where: { id },
         data: {
-          assignment_status: AssignmentStatus.submitted,
-          deliverable_count_submitted: nextSubmittedCount,
+          // Don't change status for bonus submissions from approved/completed
+          ...(isBonusSubmission ? {} : { assignment_status: AssignmentStatus.submitted }),
+          deliverable_count_submitted: totalSubmitted,
           submitted_at: submittedAt,
-          ...(firstUrl ? { submission_url: firstUrl } : {}),
+          ...(latestUrl ? { submission_url: latestUrl } : {}),
         },
       });
 
@@ -572,14 +596,65 @@ export class ActionAssignmentsService {
     id: string,
     user: AuthenticatedUser,
   ) {
-    return this.transitionAssignmentStatus(
-      organizationId,
-      id,
-      AssignmentStatus.completed,
-      user,
-      "assignment_approve",
-      { completed_at: new Date(), completion_date: new Date() },
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const assignment = await tx.actionAssignment.findFirst({
+        where: { id, organization_id: organizationId },
+      });
+
+      if (!assignment) {
+        throw new NotFoundException("Action assignment not found.");
+      }
+
+      assertValidStateTransition(
+        "action_assignment",
+        assignment.assignment_status,
+        AssignmentStatus.approved,
+      );
+
+      const now = new Date();
+
+      // Update all submitted deliverables to approved
+      await tx.deliverable.updateMany({
+        where: {
+          action_assignment_id: id,
+          organization_id: organizationId,
+          status: "submitted",
+        },
+        data: {
+          status: "approved",
+          approved_at: now,
+          reviewed_by_user_id: user.id,
+          reviewed_at: now,
+        },
+      });
+
+      const updatedAssignment = await tx.actionAssignment.update({
+        where: { id },
+        data: {
+          assignment_status: AssignmentStatus.approved,
+          completed_at: now,
+          completion_date: now,
+        },
+      });
+
+      await this.auditLogService.logUserEvent(
+        {
+          organizationId,
+          entityType: "action_assignment",
+          entityId: id,
+          parentEntityType: "action",
+          parentEntityId: assignment.action_id,
+          eventType: "assignment_state_changed",
+          changedById: user.id,
+          previousValue: { assignment_status: assignment.assignment_status },
+          newValue: { assignment_status: updatedAssignment.assignment_status },
+          metadataJson: { workflow_action: "assignment_approve" },
+        },
+        tx,
+      );
+
+      return updatedAssignment;
+    });
   }
 
   async requestRevision(
@@ -602,6 +677,22 @@ export class ActionAssignmentsService {
         assignment.assignment_status,
         AssignmentStatus.revision,
       );
+
+      // Mark submitted deliverables as rejected
+      const now = new Date();
+      await tx.deliverable.updateMany({
+        where: {
+          action_assignment_id: id,
+          organization_id: organizationId,
+          status: "submitted",
+        },
+        data: {
+          status: "rejected",
+          rejection_reason: reason,
+          reviewed_by_user_id: user.id,
+          reviewed_at: now,
+        },
+      });
 
       const updatedAssignment = await tx.actionAssignment.update({
         where: { id },

@@ -82,22 +82,6 @@ export function TemplateListPage() {
             });
           }}
         />
-        <select
-          value={categoryFilter}
-          onChange={(event) => {
-            updateSearchParams({
-              category: event.target.value || undefined,
-              page: undefined,
-            });
-          }}
-        >
-          <option value="">All categories</option>
-          {MESSAGE_TEMPLATE_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat.replace(/_/g, " ")}
-            </option>
-          ))}
-        </select>
         <button
           className="primary-button"
           type="button"
@@ -105,6 +89,31 @@ export function TemplateListPage() {
         >
           {showCreateForm ? "Close" : "Create Template"}
         </button>
+      </div>
+
+      <div className="status-filter-bar">
+        <button
+          type="button"
+          className={`status-filter-chip ${!categoryFilter ? "status-filter-chip-active" : ""}`}
+          onClick={() => updateSearchParams({ category: undefined, page: undefined })}
+        >
+          All
+        </button>
+        {MESSAGE_TEMPLATE_CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            className={`status-filter-chip ${categoryFilter === cat ? "status-filter-chip-active" : ""}`}
+            onClick={() =>
+              updateSearchParams({
+                category: categoryFilter === cat ? undefined : cat,
+                page: undefined,
+              })
+            }
+          >
+            {cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+          </button>
+        ))}
       </div>
 
       {showCreateForm ? (

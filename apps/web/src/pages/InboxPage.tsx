@@ -55,7 +55,7 @@ export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page") || DEFAULT_PAGE);
   const search = searchParams.get("search") ?? "";
-  const filterParam = (searchParams.get("filter") ?? "all") as InboxFilter;
+  const filterParam = (searchParams.get("filter") ?? "unread") as InboxFilter;
 
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -181,7 +181,7 @@ export function InboxPage() {
             className={`status-filter-chip ${filterParam === opt.value ? "status-filter-chip-active" : ""}`}
             onClick={() =>
               updateSearchParams({
-                filter: opt.value === "all" ? undefined : opt.value,
+                filter: opt.value === "unread" ? undefined : opt.value,
                 page: undefined,
               })
             }

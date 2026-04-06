@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
@@ -423,32 +424,46 @@ function SubmissionReviewSection({
     submitted_at?: string | null;
     revision_count?: number;
     revision_reason?: string | null;
-    deliverables?: Array<{ id: string; submission_url: string | null; description: string | null; status: string; submitted_at: string | null }>;
   };
   canPlan: boolean;
   onRefresh: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch full assignment with deliverables to get notes and URL
+  const fullAssignmentQuery = useQuery({
+    queryKey: ["web", "assignment-detail", assignment.id],
+    queryFn: () => actionAssignmentsApi.get(assignment.id),
+    enabled: Boolean(assignment.id),
+  });
+
+  const deliverables = fullAssignmentQuery.data?.deliverables ?? [];
+  const deliverableNotes = deliverables
+    .filter((d) => d.description)
+    .map((d) => d.description!);
+  // Use deliverable URL if the assignment submission_url is not set
+  const effectiveUrl = assignment.submission_url
+    ?? deliverables.find((d) => d.submission_url)?.submission_url
+    ?? null;
+
   const isSubmitted = assignment.assignment_status === "submitted";
   const isRevision = assignment.assignment_status === "revision";
 
-  // Get notes from deliverables
-  const deliverableNotes = (assignment as Record<string, unknown>).deliverables
-    ? ((assignment as Record<string, unknown>).deliverables as Array<{ description: string | null }>)
-        .filter((d) => d.description)
-        .map((d) => d.description!)
-    : [];
+  async function refreshAll() {
+    onRefresh();
+    await queryClient.invalidateQueries({ queryKey: ["web", "assignment-detail", assignment.id] });
+  }
 
   async function handleApprove() {
     setSubmitting(true);
     setError(null);
     try {
       await actionAssignmentsApi.approve(assignment.id);
-      onRefresh();
+      await refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve.");
     } finally {
@@ -464,7 +479,7 @@ function SubmissionReviewSection({
       await actionAssignmentsApi.requestRevision(assignment.id, revisionReason.trim());
       setShowRevisionForm(false);
       setRevisionReason("");
-      onRefresh();
+      await refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to request revision.");
     } finally {
@@ -485,43 +500,59 @@ function SubmissionReviewSection({
         </div>
       ) : null}
 
-      <div className="detail-fields">
-        {assignment.submission_url ? (
+      {deliverables.length > 0 ? (
+        <>
+        <div style={{ display: "grid", gridTemplateColumns: "4fr 1fr 1fr", gap: "12px 24px" }}>
           <div className="detail-field">
             <span className="detail-label">Action URL</span>
-            <a
-              href={assignment.submission_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="primary-link"
-              style={{ wordBreak: "break-all" }}
-            >
-              {assignment.submission_url}
-            </a>
+            {deliverables[0].submission_url ? (
+              <a
+                href={deliverables[0].submission_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="primary-link"
+                style={{ wordBreak: "break-all" }}
+              >
+                {deliverables[0].submission_url}
+              </a>
+            ) : (
+              <span className="muted">No URL submitted</span>
+            )}
           </div>
-        ) : (
-          <div className="detail-field">
-            <span className="detail-label">Action URL</span>
-            <span className="muted">No URL submitted</span>
-          </div>
-        )}
-
-        {(assignment as { submitted_at?: string | null }).submitted_at ? (
           <div className="detail-field">
             <span className="detail-label">Submitted</span>
-            <span>{formatDate((assignment as { submitted_at?: string | null }).submitted_at, { mode: "datetime" })}</span>
+            <span>{deliverables[0].submitted_at ? formatDate(deliverables[0].submitted_at, { mode: "datetime" }) : "—"}</span>
           </div>
-        ) : null}
-
-        {deliverableNotes.length > 0 ? (
           <div className="detail-field">
-            <span className="detail-label">Notes from Influencer</span>
-            {deliverableNotes.map((note, i) => (
-              <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0, fontSize: 14, whiteSpace: "pre-wrap" }}>{note}</p>
-            ))}
+            <span className="detail-label">Status</span>
+            <StatusBadge label={deliverables[0].status} tone={statusTone(deliverables[0].status)} />
+          </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+            <span className="detail-label">Note</span>
+            {deliverables[0].description ? (
+              <p style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap", color: "var(--color-ink-secondary)" }}>{deliverables[0].description}</p>
+            ) : (
+              <span className="muted">No notes</span>
+            )}
+          </div>
+        {deliverables[0].status !== "submitted" ? (
+          <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--color-surface-subtle)", borderRadius: 8, fontSize: 13, color: "var(--color-ink-secondary)" }}>
+            <strong>
+              {deliverables[0].status === "approved" ? "Approved" : "Revision Requested"}
+            </strong>
+            {deliverables[0].reviewed_by_user?.full_name ? ` by ${deliverables[0].reviewed_by_user.full_name}` : ""}
+            {deliverables[0].reviewed_at ? (
+              <span> — {formatDate(deliverables[0].reviewed_at, { mode: "datetime" })}</span>
+            ) : deliverables[0].approved_at ? (
+              <span> — {formatDate(deliverables[0].approved_at, { mode: "datetime" })}</span>
+            ) : null}
           </div>
         ) : null}
-      </div>
+        </>
+      ) : (
+        <p className="muted">No submissions yet.</p>
+      )}
 
       {canPlan && isSubmitted ? (
         <div style={{ marginTop: 16 }}>
@@ -558,14 +589,6 @@ function SubmissionReviewSection({
           ) : (
             <div className="inline-actions">
               <button
-                className="primary-button"
-                type="button"
-                disabled={submitting}
-                onClick={handleApprove}
-              >
-                {submitting ? "Approving..." : "Approve"}
-              </button>
-              <button
                 className="secondary-button danger-button"
                 type="button"
                 disabled={submitting}
@@ -573,9 +596,65 @@ function SubmissionReviewSection({
               >
                 Request Revision
               </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting}
+                onClick={handleApprove}
+              >
+                {submitting ? "Approving..." : "Approve"}
+              </button>
             </div>
           )}
           {error ? <p className="error-copy" style={{ marginTop: 8 }}>{error}</p> : null}
+        </div>
+      ) : null}
+
+      {deliverables.length > 1 ? (
+        <div style={{ marginTop: 20, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--color-ink-tertiary)" }}>
+            Previous Submissions
+          </h3>
+          {deliverables.slice(1).map((d, i) => {
+            const isApproved = d.status === "approved";
+            const reviewLabel = isApproved ? "Approved" : "Revision Requested";
+            const reviewTone = isApproved ? "success" : "warning";
+            return (
+            <div key={d.id ?? i} style={{ padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <strong style={{ fontSize: 13 }}>Submission #{deliverables.length - 1 - i}</strong>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <StatusBadge label={reviewLabel} tone={reviewTone as "info" | "success" | "warning" | "danger"} />
+                  <span style={{ fontSize: 12, color: "var(--color-ink-tertiary)" }}>
+                    {d.submitted_at ? formatDate(d.submitted_at, { mode: "datetime" }) : ""}
+                  </span>
+                </div>
+              </div>
+              {d.submission_url ? (
+                <a
+                  href={d.submission_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="primary-link"
+                  style={{ fontSize: 13, wordBreak: "break-all" }}
+                >
+                  {d.submission_url}
+                </a>
+              ) : null}
+              {d.description ? (
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--color-ink-secondary)", whiteSpace: "pre-wrap" }}>
+                  {d.description}
+                </p>
+              ) : null}
+              <div style={{ marginTop: 6, padding: "6px 10px", background: "var(--color-surface-subtle)", borderRadius: 6, fontSize: 12, color: "var(--color-ink-secondary)" }}>
+                <strong>{reviewLabel}</strong>
+                {d.reviewed_by_user?.full_name ? ` by ${d.reviewed_by_user.full_name}` : ""}
+                {d.reviewed_at ? ` — ${formatDate(d.reviewed_at, { mode: "datetime" })}` : d.approved_at ? ` — ${formatDate(d.approved_at, { mode: "datetime" })}` : ""}
+                {d.rejection_reason ? ` — "${d.rejection_reason}"` : ""}
+              </div>
+            </div>
+            );
+          })}
         </div>
       ) : null}
     </PageSection>
@@ -747,32 +826,41 @@ export function InfluencerActionDetailPage({
               <span>{formatDate(assignment.due_date)}</span>
             </div>
           ) : null}
-          {action.instructions ? (
+        </div>
+        {action.instructions ? (
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, marginTop: 16 }}>
             <div className="detail-field">
               <span className="detail-label">Instructions</span>
-              <span>{action.instructions}</span>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{action.instructions}</p>
             </div>
-          ) : null}
-        </div>
+            <div />
+          </div>
+        ) : null}
       </PageSection>
 
       {assignment ? (
-        <PageSection eyebrow="Assignment" title="Action details">
-          <AssignmentEditor
-            assignmentId={assignment.id}
-            currentStatus={assignment.assignment_status}
-            currentUrl={assignment.submission_url}
-            currentPublishedAt={assignment.published_at}
-          />
-        </PageSection>
-      ) : null}
-
-      {assignment && (assignment.submission_url || assignment.assignment_status === "submitted" || assignment.assignment_status === "revision") ? (
         <SubmissionReviewSection
           assignment={assignment}
           canPlan={canPlan}
           onRefresh={() => { void campaignQuery.refetch(); }}
         />
+      ) : null}
+
+      {assignment && influencerId && campaignId ? (
+        <PageSection
+          eyebrow="Rating"
+          title={
+            ratingAverage
+              ? `Quality rating — ${ratingAverage} ★`
+              : "Quality rating"
+          }
+        >
+          <RatingSection
+            assignmentId={assignment.id}
+            influencerId={influencerId}
+            campaignId={campaignId}
+          />
+        </PageSection>
       ) : null}
 
       {assignment ? (
@@ -834,23 +922,6 @@ export function InfluencerActionDetailPage({
               </tbody>
             </table>
           )}
-        </PageSection>
-      ) : null}
-
-      {assignment && influencerId && campaignId ? (
-        <PageSection
-          eyebrow="Rating"
-          title={
-            ratingAverage
-              ? `Quality rating — ${ratingAverage} ★`
-              : "Quality rating"
-          }
-        >
-          <RatingSection
-            assignmentId={assignment.id}
-            influencerId={influencerId}
-            campaignId={campaignId}
-          />
         </PageSection>
       ) : null}
     </div>

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { assignmentsApi } from "../services/api";
 import type { InfluencerWorkspaceAssignment } from "@influencer-manager/shared/types/mobile";
 
-const COMPLETED_STATUSES = new Set(["approved", "completed", "completed_by_cascade"]);
+const COMPLETED_STATUSES = new Set(["approved", "completed", "completed_by_cascade", "declined"]);
 const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
 
 function getUrgency(assignment: InfluencerWorkspaceAssignment): "invited" | "overdue" | "soon" | "ontrack" | "done" {
@@ -113,7 +113,10 @@ export function ActionFeedPage() {
       </div>
 
       <div className="toggle-row">
-        <span style={{ fontSize: 14, fontWeight: 600 }}>Show Completed</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>
+          Show Completed
+          {showCompleted ? ` (${sorted.length - pendingCount})` : ""}
+        </span>
         <label style={{ position: "relative", display: "inline-block", width: 48, height: 28 }}>
           <input
             type="checkbox"

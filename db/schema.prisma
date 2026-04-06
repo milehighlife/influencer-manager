@@ -315,6 +315,7 @@ model User {
   influencer_ratings InfluencerRating[] @relation("user_ratings")
   influencer_notes   InfluencerNote[] @relation("user_notes")
   submitted_deliverables Deliverable[] @relation("user_submitted_deliverables")
+  reviewed_deliverables  Deliverable[] @relation("user_reviewed_deliverables")
   created_templates     MessageTemplate[] @relation("user_created_templates")
   created_conversations Conversation[] @relation("user_created_conversations")
   conversation_participations ConversationParticipant[] @relation("user_participations")
@@ -558,11 +559,14 @@ model Deliverable {
   submitted_at         DateTime?         @db.Timestamptz(6)
   approved_at          DateTime?         @db.Timestamptz(6)
   submitted_by_user_id String?           @db.Uuid
+  reviewed_by_user_id  String?           @db.Uuid
+  reviewed_at          DateTime?         @db.Timestamptz(6)
   created_at           DateTime          @default(now()) @db.Timestamptz(6)
   updated_at           DateTime          @updatedAt @db.Timestamptz(6)
   organization         Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   action_assignment    ActionAssignment  @relation("assignment_deliverables", fields: [organization_id, action_assignment_id], references: [organization_id, id], onDelete: Cascade)
   submitted_by_user    User?             @relation("user_submitted_deliverables", fields: [organization_id, submitted_by_user_id], references: [organization_id, id], onDelete: Restrict)
+  reviewed_by_user     User?             @relation("user_reviewed_deliverables", fields: [reviewed_by_user_id], references: [id], onDelete: SetNull)
   posts                Post[]            @relation("deliverable_posts")
 
   @@unique([organization_id, id])

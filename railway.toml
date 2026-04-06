@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "infrastructure/docker/api/Dockerfile"
+watchPatterns = ["apps/api/**", "packages/**", "db/**", "package.json", "package-lock.json"]
+
+[deploy]
+startCommand = "npm run db:deploy && node apps/api/dist/apps/api/src/main.js"
+healthcheckPath = "/api/health/live"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

@@ -148,7 +148,7 @@ function InfluencerRow({ item }: { item: Influencer }) {
         {item.rating_average != null ? item.rating_average.toFixed(1) : "—"}
       </td>
       <td>
-        <Link className="secondary-button" to={`/influencers/${item.id}`}>
+        <Link className="secondary-button" to={`/influencers/${item.id}`} style={{ padding: "4px 12px", fontSize: 12 }}>
           Details
         </Link>
       </td>

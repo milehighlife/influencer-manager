@@ -127,7 +127,7 @@ export function loadRuntimeConfig(
     databaseUrl: env.DATABASE_URL ?? defaultDatabaseUrl,
     jwtSecret: env.JWT_SECRET ?? defaultJwtSecret,
     jwtExpiresIn: env.JWT_EXPIRES_IN ?? "1h",
-    apiPort: parseInteger(env.API_PORT, 3000, "API_PORT"),
+    apiPort: parseInteger(env.PORT ?? env.API_PORT, 3000, "API_PORT"),
     apiHost: env.API_HOST ?? "0.0.0.0",
     apiBasePath: normalizeApiBasePath(env.API_BASE_PATH),
     enableJobWorkers: parseBoolean(env.ENABLE_JOB_WORKERS, false),

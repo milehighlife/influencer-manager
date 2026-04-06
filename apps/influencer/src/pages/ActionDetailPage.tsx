@@ -416,26 +416,15 @@ export function ActionDetailPage() {
 
   const submitMutation = useMutation({
     mutationFn: () => {
-      // Collect URLs from existing deliverables + the new submission form
-      const existingDeliverables = (data?.deliverables ?? [])
-        .filter((d) => d.submission_url)
-        .map((d) => ({
-          deliverable_type: d.deliverable_type,
-          submission_url: d.submission_url!,
-        }));
-
-      const allDeliverables = [...existingDeliverables];
-
-      // Add the form URL if provided and not already in the list
-      if (submissionUrl.trim()) {
-        allDeliverables.push({
-          deliverable_type: "post_link",
-          submission_url: submissionUrl.trim(),
-          description: submissionNotes.trim() || undefined,
-        });
+      if (!submissionUrl.trim()) {
+        return Promise.reject(new Error("A URL is required to submit."));
       }
 
-      return assignmentsApi.submit(id!, allDeliverables);
+      return assignmentsApi.submit(id!, [{
+        deliverable_type: "post_link",
+        submission_url: submissionUrl.trim(),
+        description: submissionNotes.trim() || undefined,
+      }]);
     },
     onSuccess: () => {
       setSubmissionUrl("");
@@ -494,11 +483,8 @@ export function ActionDetailPage() {
   }
 
   function canSubmit(): boolean {
-    if (status !== "in_progress" && status !== "revision") return false;
-    const requiredCount = action.required_deliverables || 1;
-    const existingCount = deliverables.filter((d) => d.submission_url).length;
-    const formCount = submissionUrl.trim() ? 1 : 0;
-    return (existingCount + formCount) >= requiredCount;
+    if (status !== "in_progress" && status !== "revision" && status !== "approved" && status !== "completed") return false;
+    return submissionUrl.trim().length > 0;
   }
 
   // ---------- Invitation view ----------
@@ -599,25 +585,60 @@ export function ActionDetailPage() {
         </>
       )}
 
-      {/* Deliverables */}
-      <div className="section">
-        <h2 className="section-title">
-          Deliverables ({submittedCount} of {totalDeliverables} submitted)
-        </h2>
-        {deliverables.map((d) => (
-          <DeliverableRow
-            key={d.id}
-            deliverable={d}
-            onSubmitUrl={handleSubmitUrl}
-            submitting={submitUrlMutation.isPending}
-          />
-        ))}
-      </div>
+      {/* Submission History */}
+      {deliverables.length > 0 ? (
+        <div className="section">
+          <h2 className="section-title">
+            Submissions ({deliverables.length})
+          </h2>
+          {deliverables.map((d, i) => (
+            <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                  Submission #{deliverables.length - i}
+                </span>
+                <span
+                  className={`chip ${
+                    d.status === "approved" ? "chip-success"
+                    : d.status === "rejected" ? "chip-danger"
+                    : d.status === "submitted" ? "chip-primary"
+                    : "chip-neutral"
+                  }`}
+                >
+                  {d.status}
+                </span>
+              </div>
+              {d.submission_url ? (
+                <a
+                  href={d.submission_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 13, color: "var(--color-primary)", wordBreak: "break-all" }}
+                >
+                  {d.submission_url}
+                </a>
+              ) : null}
+              {d.description ? (
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--color-ink-secondary)" }}>
+                  {d.description}
+                </p>
+              ) : null}
+              {d.submitted_at ? (
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--color-ink-tertiary)" }}>
+                  {formatDate(d.submitted_at)}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Submission Form */}
-      {(status === "in_progress" || status === "revision") ? (
+      {(status === "in_progress" || status === "revision" || status === "approved" || status === "completed") ? (
         <div className="section">
-          <h2 className="section-title">Submit Your Work</h2>
+          <h2 className="section-title">
+            {status === "approved" || status === "completed" ? "Bonus Submission" : "Submit Your Work"}
+          </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--color-ink-secondary)" }}>
@@ -710,23 +731,24 @@ export function ActionDetailPage() {
           </button>
         )}
 
-        {status === "completed" && (
-          <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "14px 0", fontSize: 15, gap: 6 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            Completed
-          </div>
-        )}
-
-        {/* Legacy: approved still shows for backward compat */}
-        {status === "approved" && (
-          <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "14px 0", fontSize: 15, gap: 6 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            Completed
-          </div>
+        {(status === "completed" || status === "approved") && (
+          <>
+            <div className="chip chip-success" style={{ width: "100%", justifyContent: "center", padding: "10px 0", fontSize: 14, gap: 6, marginBottom: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              {status === "approved" ? "Approved" : "Completed"}
+            </div>
+            {canSubmit() ? (
+              <button
+                className="btn btn-secondary btn-full"
+                disabled={isBusy}
+                onClick={() => submitMutation.mutate()}
+              >
+                {submitMutation.isPending ? "Submitting..." : "Submit Bonus"}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
 
